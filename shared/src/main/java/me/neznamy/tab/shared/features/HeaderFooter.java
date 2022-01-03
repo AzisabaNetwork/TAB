@@ -84,7 +84,7 @@ public class HeaderFooter extends TabFeature implements HeaderFooterManager, Joi
             p.setProperty(this, TabConstants.Property.HEADER, getProperty(p, TabConstants.Property.HEADER));
             p.setProperty(this, TabConstants.Property.FOOTER, getProperty(p, TabConstants.Property.FOOTER));
         }
-        sendHeaderFooter(p, p.getProperty(TabConstants.Property.HEADER).updateAndGet(), p.getProperty(TabConstants.Property.FOOTER).updateAndGet());
+        sendHeaderFooter(p, p.getProperty(TabConstants.Property.HEADER).updateAndGet().replaceAll("\\nnull", ""), p.getProperty(TabConstants.Property.FOOTER).updateAndGet().replaceAll("\\nnull", ""));
     }
 
     public void onDisableConditionChange(TabPlayer p, boolean disabledNow) {
