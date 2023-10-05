@@ -6,15 +6,13 @@ import lombok.Setter;
 import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.chat.rgb.RGBUtils;
 import me.neznamy.tab.shared.util.ComponentCache;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.TextDecoration;
-import net.md_5.bungee.api.ChatColor;
-import net.md_5.bungee.api.chat.TextComponent;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.simple.JSONObject;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -28,20 +26,18 @@ public class IChatBaseComponent {
      * Component cache maps to avoid large memory allocations as well as
      * higher CPU usage when using animations which send the same text on repeat.
      */
-    private static final ComponentCache<String, IChatBaseComponent> stringCache = new ComponentCache<>(10000, (text, clientVersion) -> {
+    private static final ComponentCache<String, IChatBaseComponent> stringCache = new ComponentCache<>(1000, (text, clientVersion) -> {
                 return text.contains("#") || text.contains("&x") || text.contains(EnumChatFormat.COLOR_CHAR + "x") || text.contains("<") ?
-                    IChatBaseComponent.fromColoredText(text) : //contains RGB colors
+                    IChatBaseComponent.fromColoredText(text) : //contains RGB colors or font
                     new IChatBaseComponent(text); //no RGB
             });
 
-    private static final ComponentCache<IChatBaseComponent, String> serializeCache = new ComponentCache<>(10000,
+    private static final ComponentCache<IChatBaseComponent, String> serializeCache = new ComponentCache<>(1000,
             (component, clientVersion) -> component.toString());
 
-    /** Component cache for BungeeCord components */
-    private static final @NotNull ComponentCache<IChatBaseComponent, Object> bungeeCache =
-            new ComponentCache<>(10000, IChatBaseComponent::toBungeeComponent0);
-
     public static final String EMPTY_COMPONENT = "{\"text\":\"\"}";
+
+    private static final Pattern fontPattern = Pattern.compile("<font:(.*?)>(.*?)</font>");
 
     /** Text of the component */
     @Getter @Setter private String text;
@@ -143,11 +139,41 @@ public class IChatBaseComponent {
      *          text to convert
      * @return  organized component from colored text
      */
-    public static @NotNull IChatBaseComponent fromColoredText(@NotNull String originalText) {
+    @NotNull
+    public static IChatBaseComponent fromColoredText(@NotNull String originalText) {
+        if (originalText.isEmpty()) return new IChatBaseComponent("");
+        String remainingText = originalText;
+        List<IChatBaseComponent> components = new ArrayList<>();
+        while (!remainingText.isEmpty()) {
+            Matcher m = fontPattern.matcher(remainingText);
+            if (m.find()) {
+                if (m.start() > 0) {
+                    // Something is before the text with font, process normally
+                    components.addAll(toComponentArray(remainingText.substring(0, m.start()), null));
+                }
+                // Process text with font
+                String match = m.group();
+                components.addAll(toComponentArray(
+                        match.substring(match.indexOf(">")+1, match.length()-7),
+                        match.substring(6, match.indexOf(">"))
+                ));
+                // Prepare the rest for next loop
+                remainingText = remainingText.substring(m.start() + match.length());
+            } else {
+                components.addAll(toComponentArray(remainingText, null));
+                break;
+            }
+        }
+        return new IChatBaseComponent("").setExtra(components);
+    }
+
+    @NotNull
+    private static List<IChatBaseComponent> toComponentArray(@NotNull String originalText, @Nullable String font) {
         String text = RGBUtils.getInstance().applyFormats(EnumChatFormat.color(originalText));
         List<IChatBaseComponent> components = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         IChatBaseComponent component = new IChatBaseComponent();
+        component.modifier.setFont(font);
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
             if (c == EnumChatFormat.COLOR_CHAR) {
@@ -166,6 +192,7 @@ public class IChatBaseComponent {
                         components.add(component);
                         component = new IChatBaseComponent(component);
                         component.text = null;
+                        component.modifier.setFont(font);
                         builder = new StringBuilder();
                     }
                     switch (format) {
@@ -187,10 +214,12 @@ public class IChatBaseComponent {
                     case RESET: 
                         component = new IChatBaseComponent();
                         component.modifier.setColor(new TextColor(EnumChatFormat.WHITE));
+                        component.modifier.setFont(font);
                         break;
                     default:
                         component = new IChatBaseComponent();
                         component.modifier.setColor(new TextColor(format));
+                        component.modifier.setFont(font);
                         break;
                     }
                 }
@@ -198,8 +227,9 @@ public class IChatBaseComponent {
                 String hex = text.substring(i+1, i+7);
                 if (RGBUtils.getInstance().isHexCode(hex)) {
                     TextColor color;
-                    if (containsLegacyCode(text, i)) {
-                        color = new TextColor(hex, EnumChatFormat.getByChar(text.charAt(i+8)));
+                    EnumChatFormat code = text.length() - i >= 9 ? EnumChatFormat.getByChar(text.charAt(i+8)) : null;
+                    if (code != null && text.charAt(i+7) == '|') {
+                        color = new TextColor(hex, code);
                         i += 8;
                     } else {
                         color = new TextColor(hex);
@@ -212,6 +242,7 @@ public class IChatBaseComponent {
                     }
                     component = new IChatBaseComponent();
                     component.modifier.setColor(color);
+                    component.modifier.setFont(font);
                 } else {
                     builder.append(c);
                 }
@@ -221,21 +252,7 @@ public class IChatBaseComponent {
         }
         component.setText(builder.toString());
         components.add(component);
-        return new IChatBaseComponent("").setExtra(components);
-    }
-
-    /**
-     * Returns true if text contains legacy color request at defined RGB index start
-     *
-     * @param   text
-     *          text to check
-     * @param   i
-     *          current index start
-     * @return  true if legacy color is defined, false if not
-     */
-    private static boolean containsLegacyCode(@NotNull String text, int i) {
-        if (text.length() - i < 9 || text.charAt(i+7) != '|') return false;
-        return EnumChatFormat.getByChar(text.charAt(i+8)) != null;
+        return components;
     }
 
     /**
@@ -309,22 +326,6 @@ public class IChatBaseComponent {
     }
 
     /**
-     * Converts the component into flat text with used colors (including rgb) and magic codes
-     *
-     * @return  converted text
-     */
-    public @NotNull String toFlatText() {
-        StringBuilder builder = new StringBuilder();
-        if (modifier.getColor() != null) builder.append("#").append(modifier.getColor().getHexCode());
-        builder.append(modifier.getMagicCodes());
-        if (text != null) builder.append(text);
-        for (IChatBaseComponent child : getExtra()) {
-            builder.append(child.toFlatText());
-        }
-        return builder.toString();
-    }
-
-    /**
      * Returns the most optimized component based on text. Returns null if text is null,
      * organized component if RGB colors are used or simple component with only text field
      * containing the whole text when no RGB colors are used
@@ -335,60 +336,5 @@ public class IChatBaseComponent {
      */
     public static @NotNull IChatBaseComponent optimizedComponent(@NotNull String text) {
         return stringCache.get(text, null);
-    }
-
-    /**
-     * Converts this component to adventure component. RGB conversion to
-     * legacy codes is managed by the platform using adventure components.
-     *
-     * @param   clientVersion
-     *          Version to create component for
-     * @return  Adventure component from this component.
-     */
-    public @NotNull Component toAdventureComponent(@NotNull ProtocolVersion clientVersion) {
-        net.kyori.adventure.text.format.TextColor color = null;
-        if (modifier.getColor() != null) {
-            if (clientVersion.getMinorVersion() >= 16) {
-                color = net.kyori.adventure.text.format.TextColor.color(modifier.getColor().getRgb());
-            } else {
-                color = net.kyori.adventure.text.format.TextColor.color(modifier.getColor().getLegacyColor().getHexCode());
-            }
-        }
-        Set<TextDecoration> decorations = new HashSet<>();
-        if (modifier.isBold()) decorations.add(TextDecoration.BOLD);
-        if (modifier.isItalic()) decorations.add(TextDecoration.ITALIC);
-        if (modifier.isObfuscated()) decorations.add(TextDecoration.OBFUSCATED);
-        if (modifier.isStrikethrough()) decorations.add(TextDecoration.STRIKETHROUGH);
-        if (modifier.isUnderlined()) decorations.add(TextDecoration.UNDERLINED);
-        return Component.text(text, color, decorations)
-                .children(getExtra().stream().map(c -> c.toAdventureComponent(clientVersion)).collect(Collectors.toList()));
-    }
-
-    /**
-     * Converts this component to bungeecord component.
-     *
-     * @return  BungeeCord component from this component.
-     */
-    public TextComponent toBungeeComponent(@NotNull ProtocolVersion clientVersion) {
-        return (TextComponent) bungeeCache.get(this, clientVersion);
-    }
-
-    /**
-     * Converts this component to bungeecord component.
-     *
-     * @return  BungeeCord component from this component.
-     */
-    private Object toBungeeComponent0(@NotNull ProtocolVersion clientVersion) {
-        TextComponent textComponent = new TextComponent(text);
-        if (modifier.getColor() != null) textComponent.setColor(ChatColor.of(
-                modifier.getColor().toString(clientVersion.getMinorVersion() >= 16)));
-        if (modifier.isBold()) textComponent.setBold(true);
-        if (modifier.isItalic()) textComponent.setItalic(true);
-        if (modifier.isObfuscated()) textComponent.setObfuscated(true);
-        if (modifier.isStrikethrough()) textComponent.setStrikethrough(true);
-        if (modifier.isUnderlined()) textComponent.setUnderlined(true);
-        if (!getExtra().isEmpty()) textComponent.setExtra(
-                getExtra().stream().map(c -> c.toBungeeComponent(clientVersion)).collect(Collectors.toList()));
-        return textComponent;
     }
 }

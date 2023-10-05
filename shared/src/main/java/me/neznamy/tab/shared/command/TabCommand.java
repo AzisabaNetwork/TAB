@@ -1,12 +1,13 @@
 package me.neznamy.tab.shared.command;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.Lists;
 
 import me.neznamy.tab.shared.ProtocolVersion;
+import me.neznamy.tab.shared.command.bossbar.BossBarCommand;
 import me.neznamy.tab.shared.command.scoreboard.ScoreboardCommand;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.TAB;
@@ -24,7 +25,6 @@ public class TabCommand extends SubCommand {
      */
     public TabCommand() {
         super(null, null);
-        registerSubCommand(new AnnounceCommand());
         registerSubCommand(new BossBarCommand());
         registerSubCommand(new CpuCommand());
         registerSubCommand(new DebugCommand());
@@ -36,7 +36,6 @@ public class TabCommand extends SubCommand {
         registerSubCommand(new PlayerCommand());
         registerSubCommand(new PlayerUUIDCommand());
         registerSubCommand(new ReloadCommand());
-        registerSubCommand(new SendCommand());
         registerSubCommand(new SetCollisionCommand());
         registerSubCommand(new ScoreboardCommand());
         registerSubCommand(new WidthCommand());
@@ -73,11 +72,7 @@ public class TabCommand extends SubCommand {
      */
     private void help(@Nullable TabPlayer sender) {
         if (hasPermission(sender, TabConstants.Permission.COMMAND_ALL)) {
-            if (sender != null) {
-                sender.sendMessage("&3TAB v" + TabConstants.PLUGIN_VERSION + "&0 by _NEZNAMY_", true);
-            } else {
-                TAB.getInstance().sendConsoleMessage("&3TAB v" + TabConstants.PLUGIN_VERSION, true);
-            }
+            sendMessage(sender, "&3TAB v" + TabConstants.PLUGIN_VERSION);
             for (String message : getMessages().getHelpMenu()) {
                 if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY)
                     message = message.replace("/" + TabConstants.COMMAND_BACKEND, "/" + TabConstants.COMMAND_PROXY);
@@ -88,7 +83,7 @@ public class TabCommand extends SubCommand {
 
     @Override
     public @NotNull List<String> complete(@Nullable TabPlayer sender, @NotNull String[] arguments) {
-        if (!hasPermission(sender, TabConstants.Permission.COMMAND_AUTOCOMPLETE)) return new ArrayList<>();
+        if (!hasPermission(sender, TabConstants.Permission.COMMAND_AUTOCOMPLETE)) return Collections.emptyList();
         return super.complete(sender, arguments);
     }
 }

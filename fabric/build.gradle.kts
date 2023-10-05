@@ -1,12 +1,11 @@
-// Versions that don't require any code changes:
-//      1.19.3, 1.19.4, 1.20, 1.20.1
-val minecraftVersion = "1.20.1"
+val minecraftVersion = "1.20.2"
 
 val v114 = "0.28.5+1.14"
 val v115 = "0.28.5+1.15"
 val v116 = "0.42.0+1.16"
 
 val fabricApiVersions = mapOf(
+    "1.20.2" to "0.88.5+1.20.2",
     "1.20.1" to "0.83.0+1.20.1",
     "1.20"   to "0.83.0+1.20",
     "1.19.4" to "0.77.0+1.19.4",
@@ -41,7 +40,7 @@ plugins {
 
 repositories {
     // Gradle doesn't support combining settings and project repositories, so we have to re-declare all the settings repos we need
-    maven("https://repo.kryptonmc.org/releases")
+    maven("https://jitpack.io") // YamlAssist
     maven("https://repo.opencollab.dev/maven-snapshots/")
     maven("https://repo.viaversion.com/")
     maven("https://oss.sonatype.org/content/repositories/snapshots")

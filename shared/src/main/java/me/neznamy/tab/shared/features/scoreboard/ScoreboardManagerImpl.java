@@ -19,7 +19,7 @@ import java.util.Map.Entry;
  */
 public class ScoreboardManagerImpl extends TabFeature implements ScoreboardManager, JoinListener,
         CommandListener, DisplayObjectiveListener, ObjectiveListener, Loadable, UnLoadable, Refreshable,
-        ServerSwitchListener {
+        ServerSwitchListener, QuitListener {
 
     public static final String OBJECTIVE_NAME = "TAB-Scoreboard";
 
@@ -54,8 +54,16 @@ public class ScoreboardManagerImpl extends TabFeature implements ScoreboardManag
     @Override
     public void load() {
         Map<String, Map<String, Object>> map = TAB.getInstance().getConfiguration().getConfig().getConfigurationSection("scoreboard.scoreboards");
+        boolean noConditionScoreboardFound = false;
+        String noConditionScoreboard = null;
         for (Entry<String, Map<String, Object>> entry : map.entrySet()) {
             String condition = (String) entry.getValue().get("display-condition");
+            if (condition == null || condition.length() == 0) {
+                noConditionScoreboardFound = true;
+                noConditionScoreboard = entry.getKey();
+            } else if (noConditionScoreboardFound) {
+                TAB.getInstance().getMisconfigurationHelper().nonLastNoConditionScoreboard(noConditionScoreboard, entry.getKey());
+            }
             String title = TAB.getInstance().getMisconfigurationHelper().fromMapOrElse(entry.getValue(), "title", "<Title not defined>",
                     "Scoreboard \"" + entry.getKey() + "\" is missing title!");
             List<String> lines = TAB.getInstance().getMisconfigurationHelper().fromMapOrElse(entry.getValue(), "lines",
@@ -87,6 +95,8 @@ public class ScoreboardManagerImpl extends TabFeature implements ScoreboardManag
 
     @Override
     public void onJoin(@NotNull TabPlayer connectedPlayer) {
+        TAB.getInstance().getPlaceholderManager().getTabExpansion().setScoreboardName(connectedPlayer, "");
+        TAB.getInstance().getPlaceholderManager().getTabExpansion().setScoreboardVisible(connectedPlayer, false);
         if (joinDelay > 0) {
             joinDelayed.add(connectedPlayer);
             TAB.getInstance().getCPUManager().runTaskLater(joinDelay, featureName, TabConstants.CpuUsageCategory.PLAYER_JOIN, () -> {
@@ -291,7 +301,7 @@ public class ScoreboardManagerImpl extends TabFeature implements ScoreboardManag
     }
 
     @Override
-    public @NotNull me.neznamy.tab.api.scoreboard.Scoreboard getActiveScoreboard(me.neznamy.tab.api.@NonNull TabPlayer player) {
+    public @Nullable me.neznamy.tab.api.scoreboard.Scoreboard getActiveScoreboard(me.neznamy.tab.api.@NonNull TabPlayer player) {
         return activeScoreboards.get(player);
     }
 
@@ -302,6 +312,14 @@ public class ScoreboardManagerImpl extends TabFeature implements ScoreboardManag
         if (scoreboard != null) {
             scoreboard.removePlayerFromSet(changed);
             scoreboard.addPlayer(changed);
+        }
+    }
+
+    @Override
+    public void onQuit(@NotNull TabPlayer disconnectedPlayer) {
+        ScoreboardImpl sb = activeScoreboards.get(disconnectedPlayer);
+        if (sb != null) {
+            sb.removePlayerFromSet(disconnectedPlayer);
         }
     }
 }

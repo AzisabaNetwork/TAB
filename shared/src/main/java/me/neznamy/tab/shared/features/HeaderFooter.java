@@ -30,6 +30,7 @@ public class HeaderFooter extends TabFeature implements HeaderFooterManager, Joi
         Condition disableCondition = Condition.getCondition(TAB.getInstance().getConfig().getString("header-footer.disable-condition"));
         disableChecker = new DisableChecker(featureName, disableCondition, this::onDisableConditionChange);
         TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.HEADER_FOOTER + "-Condition", disableChecker);
+        TAB.getInstance().getMisconfigurationHelper().checkHeaderFooterForRedundancy(TAB.getInstance().getConfig().getConfigurationSection("header-footer"));
     }
 
     @Override
@@ -57,9 +58,9 @@ public class HeaderFooter extends TabFeature implements HeaderFooterManager, Joi
 
     @Override
     public void onServerChange(@NotNull TabPlayer p, @NotNull String from, @NotNull String to) {
-        updateProperties(p);
-        // Velocity clears header/footer on server switch, which can be a problem without placeholders that change often
-        // Resend immediately instead of the next time a placeholder changes value
+        // Velocity clears header/footer on server switch, resend regardless of whether values changed or not
+        p.setProperty(this, TabConstants.Property.HEADER, getProperty(p, TabConstants.Property.HEADER));
+        p.setProperty(this, TabConstants.Property.FOOTER, getProperty(p, TabConstants.Property.FOOTER));
         sendHeaderFooter(p, p.getProperty(TabConstants.Property.HEADER).get(), p.getProperty(TabConstants.Property.FOOTER).get());
     }
 
@@ -89,7 +90,6 @@ public class HeaderFooter extends TabFeature implements HeaderFooterManager, Joi
 
     public void onDisableConditionChange(TabPlayer p, boolean disabledNow) {
         if (disabledNow) {
-            if (p.getVersion().getMinorVersion() < 8) return;
             p.getTabList().setPlayerListHeaderFooter(new IChatBaseComponent(""), new IChatBaseComponent(""));
         } else {
             sendHeaderFooter(p, p.getProperty(TabConstants.Property.HEADER).get(), p.getProperty(TabConstants.Property.FOOTER).get());
@@ -127,7 +127,7 @@ public class HeaderFooter extends TabFeature implements HeaderFooterManager, Joi
     }
 
     private void sendHeaderFooter(TabPlayer player, String header, String footer) {
-        if (player.getVersion().getMinorVersion() < 8 || disableChecker.isDisabledPlayer(player)) return;
+        if (disableChecker.isDisabledPlayer(player)) return;
         player.getTabList().setPlayerListHeaderFooter(IChatBaseComponent.optimizedComponent(header), IChatBaseComponent.optimizedComponent(footer));
     }
 

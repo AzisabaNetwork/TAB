@@ -5,7 +5,7 @@ import me.neznamy.tab.shared.platform.bossbar.BossBar;
 import me.neznamy.tab.api.bossbar.BarColor;
 import me.neznamy.tab.api.bossbar.BarStyle;
 import me.neznamy.tab.platforms.bukkit.BukkitTabPlayer;
-import me.neznamy.tab.platforms.bukkit.nms.datawatcher.DataWatcher;
+import me.neznamy.tab.platforms.bukkit.nms.DataWatcher;
 import me.neznamy.tab.shared.backend.Location;
 import org.bukkit.entity.EntityType;
 import org.jetbrains.annotations.NotNull;
@@ -21,6 +21,7 @@ import java.util.UUID;
 public class EntityBossBar implements BossBar {
 
     /** Player this handler belongs to */
+    @NotNull
     private final BukkitTabPlayer player;
 
     @Override
@@ -28,18 +29,18 @@ public class EntityBossBar implements BossBar {
         DataWatcher w = new DataWatcher();
         float health = 300*progress;
         if (health == 0) health = 1;
-        w.getHelper().setHealth(health);
-        w.getHelper().setCustomName(title, player.getVersion());
-        w.getHelper().setEntityFlags((byte) 32);
-        w.getHelper().setWitherInvulnerableTime(880); // Magic number
-        player.spawnEntity(id.hashCode(), new UUID(0, 0), EntityType.WITHER, new Location(0, 0, 0, 0, 0), w);
+        w.setHealth(health);
+        w.setCustomName(title, player.getVersion());
+        w.setEntityFlags((byte) 32);
+        w.setWitherInvulnerableTime(880); // Magic number
+        player.getEntityView().spawnEntity(id.hashCode(), new UUID(0, 0), EntityType.WITHER, new Location(0, 0, 0), w);
     }
 
     @Override
     public void update(@NotNull UUID id, @NotNull String title) {
         DataWatcher w = new DataWatcher();
-        w.getHelper().setCustomName(title, player.getVersion());
-        player.updateEntityMetadata(id.hashCode(), w);
+        w.setCustomName(title, player.getVersion());
+        player.getEntityView().updateEntityMetadata(id.hashCode(), w);
     }
 
     @Override
@@ -47,8 +48,8 @@ public class EntityBossBar implements BossBar {
         DataWatcher w = new DataWatcher();
         float health = 300*progress;
         if (health == 0) health = 1;
-        w.getHelper().setHealth(health);
-        player.updateEntityMetadata(id.hashCode(), w);
+        w.setHealth(health);
+        player.getEntityView().updateEntityMetadata(id.hashCode(), w);
     }
 
     @Override
@@ -59,6 +60,6 @@ public class EntityBossBar implements BossBar {
 
     @Override
     public void remove(@NotNull UUID id) {
-        player.destroyEntities(id.hashCode());
+        player.getEntityView().destroyEntities(id.hashCode());
     }
 }

@@ -15,7 +15,7 @@ import java.util.List;
  */
 public class VelocityScoreboard extends Scoreboard<VelocityTabPlayer> {
 
-    public VelocityScoreboard(VelocityTabPlayer player) {
+    public VelocityScoreboard(@NotNull VelocityTabPlayer player) {
         super(player);
     }
 
@@ -25,9 +25,9 @@ public class VelocityScoreboard extends Scoreboard<VelocityTabPlayer> {
     }
 
     @Override
-    public void registerObjective0(@NotNull String objectiveName, @NotNull String title, boolean hearts) {
+    public void registerObjective0(@NotNull String objectiveName, @NotNull String title, @NotNull HealthDisplay display) {
         player.sendPluginMessage("PacketPlayOutScoreboardObjective", objectiveName, 0,
-                title, IChatBaseComponent.optimizedComponent(title).toString(player.getVersion()), hearts ? 1 : 0);
+                title, IChatBaseComponent.optimizedComponent(title).toString(player.getVersion()), display.ordinal());
     }
 
     @Override
@@ -36,13 +36,15 @@ public class VelocityScoreboard extends Scoreboard<VelocityTabPlayer> {
     }
 
     @Override
-    public void updateObjective0(@NotNull String objectiveName, @NotNull String title, boolean hearts) {
+    public void updateObjective0(@NotNull String objectiveName, @NotNull String title, @NotNull HealthDisplay display) {
         player.sendPluginMessage("PacketPlayOutScoreboardObjective", objectiveName, 2,
-                title, IChatBaseComponent.optimizedComponent(title).toString(player.getVersion()), hearts ? 1 : 0);
+                title, IChatBaseComponent.optimizedComponent(title).toString(player.getVersion()), display.ordinal());
     }
 
     @Override
-    public void registerTeam0(@NotNull String name, @NotNull String prefix, @NotNull String suffix, @NotNull NameVisibility visibility, @NotNull CollisionRule collision, @NotNull Collection<String> players, int options) {
+    public void registerTeam0(@NotNull String name, @NotNull String prefix, @NotNull String suffix,
+                              @NotNull NameVisibility visibility, @NotNull CollisionRule collision,
+                              @NotNull Collection<String> players, int options) {
         List<Object> args = new ArrayList<>();
         args.add("PacketPlayOutScoreboardTeam");
         args.add(name);
@@ -66,7 +68,8 @@ public class VelocityScoreboard extends Scoreboard<VelocityTabPlayer> {
     }
 
     @Override
-    public void updateTeam0(@NotNull String name, @NotNull String prefix, @NotNull String suffix, @NotNull NameVisibility visibility, @NotNull CollisionRule collision, int options) {
+    public void updateTeam0(@NotNull String name, @NotNull String prefix, @NotNull String suffix,
+                            @NotNull NameVisibility visibility, @NotNull CollisionRule collision, int options) {
         List<Object> args = new ArrayList<>();
         args.add("PacketPlayOutScoreboardTeam");
         args.add(name);

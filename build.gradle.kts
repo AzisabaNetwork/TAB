@@ -4,7 +4,7 @@ plugins {
 
 allprojects {
     group = "me.neznamy"
-    version = "4.0.3-SNAPSHOT"
+    version = "4.0.7-SNAPSHOT"
     description = "An all-in-one solution that works"
 
     ext.set("id", "tab")
@@ -15,7 +15,6 @@ allprojects {
 val platforms = setOf(
     projects.bukkit,
     projects.bungeecord,
-    projects.krypton,
     projects.velocity,
     projects.sponge7,
     projects.sponge8,

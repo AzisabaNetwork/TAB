@@ -3,17 +3,19 @@ package me.neznamy.tab.platforms.bukkit;
 import com.mojang.authlib.GameProfile;
 import io.netty.channel.Channel;
 import lombok.SneakyThrows;
+import me.neznamy.tab.platforms.bukkit.nms.BukkitReflection;
 import me.neznamy.tab.platforms.bukkit.scoreboard.PacketScoreboard;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.features.nametags.NameTag;
 import me.neznamy.tab.shared.platform.TabList;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.chat.IChatBaseComponent;
-import me.neznamy.tab.platforms.bukkit.nms.storage.nms.NMSStorage;
+import me.neznamy.tab.platforms.bukkit.nms.NMSStorage;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.features.injection.NettyPipelineInjector;
 import me.neznamy.tab.shared.features.sorting.Sorting;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +33,7 @@ public class BukkitPipelineInjector extends NettyPipelineInjector {
     }
 
     @Override
+    @Nullable
     protected Channel getChannel(@NotNull TabPlayer player) {
         BukkitTabPlayer bukkit = (BukkitTabPlayer) player;
         NMSStorage nms = NMSStorage.getInstance();
@@ -45,8 +48,13 @@ public class BukkitPipelineInjector extends NettyPipelineInjector {
     @Override
     @SneakyThrows
     public void onDisplayObjective(@NotNull TabPlayer player, @NotNull Object packet) {
-        TAB.getInstance().getFeatureManager().onDisplayObjective(player,
-                PacketScoreboard.DisplayObjective_POSITION.getInt(packet),
+        int position;
+        if (BukkitReflection.is1_20_2Plus()) {
+            position = ((Enum<?>)PacketScoreboard.DisplayObjective_POSITION.get(packet)).ordinal();
+        } else {
+            position = PacketScoreboard.DisplayObjective_POSITION.getInt(packet);
+        }
+        TAB.getInstance().getFeatureManager().onDisplayObjective(player, position,
                 (String) PacketScoreboard.DisplayObjective_OBJECTIVE_NAME.get(packet));
     }
 
@@ -75,13 +83,12 @@ public class BukkitPipelineInjector extends NettyPipelineInjector {
 
     @Override
     public boolean isPlayerInfo(@NotNull Object packet) {
-        return BukkitTabList.PacketPlayOutPlayerInfoClass.isInstance(packet);
+        return BukkitTabList.PlayerInfoClass.isInstance(packet);
     }
 
     @Override
     @SneakyThrows
     public void onPlayerInfo(@NotNull TabPlayer receiver, @NotNull Object packet) {
-        NMSStorage nms = NMSStorage.getInstance();
         List<String> actions;
         if (BukkitTabList.ClientboundPlayerInfoRemovePacket != null) {
             //1.19.3+
@@ -92,27 +99,42 @@ public class BukkitPipelineInjector extends NettyPipelineInjector {
         }
         List<Object> updatedList = new ArrayList<>();
         for (Object nmsData : (List<?>) BukkitTabList.PLAYERS.get(packet)) {
-            GameProfile profile = (GameProfile) BukkitTabList.PlayerInfoData_getProfile.invoke(nmsData);
+            GameProfile profile = (GameProfile) BukkitTabList.PlayerInfoData_Profile.get(nmsData);
+            UUID id;
+            if (BukkitReflection.is1_19_3Plus()) {
+                id = (UUID) BukkitTabList.PlayerInfoData_UUID.get(nmsData);
+            } else {
+                id = profile.getId();
+            }
             Object displayName = null;
+            int latency = 0;
             if (actions.contains(TabList.Action.UPDATE_DISPLAY_NAME.name()) || actions.contains(TabList.Action.ADD_PLAYER.name())) {
                 displayName = BukkitTabList.PlayerInfoData_DisplayName.get(nmsData);
-                IChatBaseComponent newDisplayName = TAB.getInstance().getFeatureManager().onDisplayNameChange(receiver, profile.getId());
-                if (newDisplayName != null) displayName = nms.toNMSComponent(newDisplayName, receiver.getVersion());
-                if (!nms.is1_19_3Plus()) BukkitTabList.PlayerInfoData_DisplayName.set(nmsData, displayName);
+                IChatBaseComponent newDisplayName = TAB.getInstance().getFeatureManager().onDisplayNameChange(receiver, id);
+                if (newDisplayName != null) displayName = TAB.getInstance().getPlatform().toComponent(newDisplayName, receiver.getVersion());
+                if (!BukkitReflection.is1_19_3Plus()) BukkitTabList.PlayerInfoData_DisplayName.set(nmsData, displayName);
             }
-            if (nms.is1_19_3Plus()) {
+            if (actions.contains(TabList.Action.UPDATE_LATENCY.name()) || actions.contains(TabList.Action.ADD_PLAYER.name())) {
+                latency = BukkitTabList.PlayerInfoData_Latency.getInt(nmsData);
+                latency = TAB.getInstance().getFeatureManager().onLatencyChange(receiver, id, latency);
+                if (!BukkitReflection.is1_19_3Plus()) BukkitTabList.PlayerInfoData_Latency.set(nmsData, latency);
+            }
+            if (actions.contains(TabList.Action.ADD_PLAYER.name())) {
+                TAB.getInstance().getFeatureManager().onEntryAdd(receiver, id, profile.getName());
+            }
+            if (BukkitReflection.is1_19_3Plus()) {
                 // 1.19.3 is using records, which do not allow changing final fields, need to rewrite the list entirely
                 updatedList.add(BukkitTabList.newPlayerInfoData.newInstance(
-                        profile.getId(),
+                        id,
                         profile,
                         BukkitTabList.PlayerInfoData_Listed.getBoolean(nmsData),
-                        BukkitTabList.PlayerInfoData_Latency.getInt(nmsData),
+                        latency,
                         BukkitTabList.PlayerInfoData_GameMode.get(nmsData),
                         displayName,
                         BukkitTabList.PlayerInfoData_RemoteChatSession.get(nmsData)));
             }
         }
-        if (nms.is1_19_3Plus()) {
+        if (BukkitReflection.is1_19_3Plus()) {
             BukkitTabList.PLAYERS.set(packet, updatedList);
         }
     }
@@ -130,7 +152,7 @@ public class BukkitPipelineInjector extends NettyPipelineInjector {
         //creating a new list to prevent NoSuchFieldException in minecraft packet encoder when a player is removed
         Collection<String> newList = new ArrayList<>();
         for (String entry : players) {
-            TabPlayer p = TAB.getInstance().getPlayer(entry);
+            TabPlayer p = getPlayer(entry);
             if (p == null) {
                 newList.add(entry);
                 continue;

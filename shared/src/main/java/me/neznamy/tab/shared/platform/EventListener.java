@@ -20,9 +20,8 @@ public abstract class EventListener<T> {
      */
     public void join(@NotNull T player) {
         if (TAB.getInstance().isPluginDisabled()) return;
-        TabPlayer p = createPlayer(player);
         TAB.getInstance().getCPUManager().runTask(() ->
-                TAB.getInstance().getFeatureManager().onJoin(p));
+                TAB.getInstance().getFeatureManager().onJoin(createPlayer(player)));
     }
 
     /**
@@ -83,7 +82,7 @@ public abstract class EventListener<T> {
     public void pluginMessage(@NotNull UUID player, byte[] message) {
         TAB.getInstance().getCPUManager().runMeasuredTask("Plugin message handling",
                 TabConstants.CpuUsageCategory.PLUGIN_MESSAGE, () ->
-                    ((ProxyPlatform)TAB.getInstance().getPlatform()).getPluginMessageHandler().onPluginMessage(player, message));
+                    ((ProxyPlatform<?>)TAB.getInstance().getPlatform()).getPluginMessageHandler().onPluginMessage(player, message));
     }
 
     /**

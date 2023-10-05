@@ -5,7 +5,7 @@ plugins {
 dependencies {
     api(projects.api)
     api("org.yaml:snakeyaml:1.33")
-    api("me.neznamy:yamlassist:1.0.5")
+    api("com.github.NEZNAMY:yamlassist:1.0.5")
     api("com.googlecode.json-simple:json-simple:1.1.1") {
         exclude("junit", "junit")
     }
@@ -13,13 +13,11 @@ dependencies {
         exclude("com.google.guava", "guava")
         exclude("org.checkerframework", "checker-qual")
     }
-    compileOnlyApi("net.md-5:bungeecord-chat:1.19-R0.1-SNAPSHOT")
     compileOnlyApi("com.viaversion:viaversion-api:4.5.1")
     compileOnlyApi("io.netty:netty-all:4.1.90.Final")
     compileOnlyApi("net.luckperms:api:5.4")
     compileOnlyApi("com.google.guava:guava:31.1-jre")
     compileOnlyApi("org.geysermc.floodgate:api:2.2.0-SNAPSHOT")
-    compileOnlyApi("org.slf4j:slf4j-api:2.0.6")
     compileOnlyApi("net.kyori:adventure-api:4.13.0")
     compileOnlyApi("net.kyori:adventure-text-serializer-legacy:4.13.0")
     compileOnlyApi("net.kyori:adventure-text-minimessage:4.13.0")

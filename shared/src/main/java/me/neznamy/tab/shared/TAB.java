@@ -12,7 +12,7 @@ import me.neznamy.tab.api.scoreboard.ScoreboardManager;
 import me.neznamy.tab.api.tablist.HeaderFooterManager;
 import me.neznamy.tab.api.tablist.TabListFormatManager;
 import me.neznamy.tab.api.nametag.NameTagManager;
-import me.neznamy.tab.shared.hook.ViaVersionHook;
+import me.neznamy.tab.shared.cpu.CpuManager;
 import me.neznamy.tab.shared.platform.Platform;
 import me.neznamy.tab.shared.command.DisabledCommand;
 import me.neznamy.tab.shared.command.TabCommand;
@@ -21,6 +21,7 @@ import me.neznamy.tab.shared.event.EventBusImpl;
 import me.neznamy.tab.shared.event.impl.TabLoadEventImpl;
 import me.neznamy.tab.shared.features.PlaceholderManagerImpl;
 import me.neznamy.tab.shared.platform.TabPlayer;
+import me.neznamy.tab.shared.proxy.ProxyPlatform;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -36,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TAB extends TabAPI {
 
     /** Instance of this class */
-    @Getter @Setter private static TAB instance;
+    @Getter private static TAB instance;
 
     /** Player data storage */
     private final Map<UUID, TabPlayer> data = new ConcurrentHashMap<>();
@@ -54,7 +55,7 @@ public class TAB extends TabAPI {
     @Getter private final DisabledCommand disabledCommand = new DisabledCommand();
 
     /** Implementation of platform the plugin is installed on for platform-specific calls */
-    @Getter private final Platform platform;
+    @Getter private final Platform<?> platform;
 
     /**
      * CPU manager for thread and task management as well as
@@ -101,18 +102,27 @@ public class TAB extends TabAPI {
     @Getter private final MisconfigurationHelper misconfigurationHelper = new MisconfigurationHelper();
 
     /**
+     * Creates new instance using given platform and loads it
+     *
+     * @param   platform
+     *          Platform interface
+     */
+    public static void create(@NotNull Platform<?> platform) {
+        instance = new TAB(platform);
+        instance.load();
+    }
+
+    /**
      * Constructs new instance with given parameters and sets this
      * new instance as {@link me.neznamy.tab.api.TabAPI} instance.
      *
      * @param   platform
      *          Platform interface
-     * @param   serverVersion
-     *          Version the server is running on
      */
-    public TAB(@NotNull Platform platform, @NotNull ProtocolVersion serverVersion, @NotNull File dataFolder) {
+    private TAB(@NotNull Platform<?> platform) {
         this.platform = platform;
-        this.serverVersion = serverVersion;
-        this.dataFolder = dataFolder;
+        this.serverVersion = platform.getServerVersion();
+        this.dataFolder = platform.getDataFolder();
         this.errorManager = new ErrorManager(this);
         try {
             eventBus = new EventBusImpl();
@@ -120,6 +130,12 @@ public class TAB extends TabAPI {
             //1.7.10 or lower
         }
         TabAPI.setInstance(this);
+        platform.registerListener();
+        platform.registerCommand();
+        platform.startMetrics();
+        if (platform instanceof ProxyPlatform) {
+            ((ProxyPlatform<?>) platform).registerChannel();
+        }
     }
 
     /**
@@ -157,12 +173,11 @@ public class TAB extends TabAPI {
             if (eventBus != null) eventBus.fire(TabLoadEventImpl.getInstance());
             pluginDisabled = false;
             cpu.enable();
-            ViaVersionHook.getInstance().printProxyWarn();
             misconfigurationHelper.printWarnCount();
-            sendConsoleMessage("&aEnabled in " + (System.currentTimeMillis()-time) + "ms", true);
+            platform.logInfo(IChatBaseComponent.fromColoredText("&aEnabled in " + (System.currentTimeMillis()-time) + "ms"));
             return configuration.getMessages().getReloadSuccess();
         } catch (YAMLException e) {
-            sendConsoleMessage("&cDid not enable due to a broken configuration file.", true);
+            platform.logWarn(IChatBaseComponent.fromColoredText("&cDid not enable due to a broken configuration file."));
             kill();
             return (configuration == null ? "&4Failed to reload, file %file% has broken syntax. Check console for more info."
                     : configuration.getMessages().getReloadFailBrokenFile()).replace("%file%", brokenFile);
@@ -183,7 +198,7 @@ public class TAB extends TabAPI {
             long time = System.currentTimeMillis();
             if (configuration.getMysql() != null) configuration.getMysql().closeConnection();
             featureManager.unload();
-            sendConsoleMessage("&aDisabled in " + (System.currentTimeMillis()-time) + "ms", true);
+            platform.logInfo(IChatBaseComponent.fromColoredText("&aDisabled in " + (System.currentTimeMillis()-time) + "ms"));
         } catch (Exception | NoClassDefFoundError e) {
             errorManager.criticalError("Failed to disable", e);
         }
@@ -277,10 +292,6 @@ public class TAB extends TabAPI {
         return data.get(uniqueId);
     }
 
-    public void sendConsoleMessage(@NotNull String message, boolean translateColors) {
-        platform.sendConsoleMessage(translateColors ? IChatBaseComponent.fromColoredText(message) : new IChatBaseComponent(message));
-    }
-
     @Override
     public @Nullable HeaderFooterManager getHeaderFooterManager() {
         return featureManager.getFeature(TabConstants.Feature.HEADER_FOOTER);
@@ -313,6 +324,7 @@ public class TAB extends TabAPI {
      *          Message to send
      */
     public void debug(@NotNull String message) {
-        if (configuration != null && configuration.isDebugMode()) sendConsoleMessage("&9[DEBUG] " + message, true);
+        if (configuration != null && configuration.isDebugMode())
+            platform.logInfo(IChatBaseComponent.fromColoredText("&9[DEBUG] " + message));
     }
 }

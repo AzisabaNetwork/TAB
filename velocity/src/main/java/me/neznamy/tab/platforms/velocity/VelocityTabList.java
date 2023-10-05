@@ -10,16 +10,17 @@ import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @SuppressWarnings("deprecation")
 @RequiredArgsConstructor
 public class VelocityTabList implements TabList {
 
     /** Player this TabList belongs to */
-    private final VelocityTabPlayer player;
+    @NotNull private final VelocityTabPlayer player;
+
+    /** Expected names based on configuration, saving to restore them if another plugin overrides them */
+    private final Map<TabListEntry, Component> expectedDisplayNames = new WeakHashMap<>();
 
     @Override
     public void removeEntry(@NotNull UUID entry) {
@@ -36,29 +37,33 @@ public class VelocityTabList implements TabList {
      */
     @Override
     public void updateDisplayName(@NotNull UUID entry, @Nullable IChatBaseComponent displayName) {
-        if (player.getVersion().getMinorVersion() >= 8) {
-            getEntry(entry).setDisplayName(displayName == null ? null : displayName.toAdventureComponent(player.getVersion()));
-        } else {
-            String username = getEntry(entry).getProfile().getName();
-            removeEntry(entry);
-            addEntry(new Entry.Builder(entry).name(username).displayName(displayName).build());
-        }
+        getEntry(entry).ifPresent(e -> {
+            if (player.getVersion().getMinorVersion() >= 8) {
+                Component component = displayName == null ? null : player.getPlatform().toComponent(displayName, player.getVersion());
+                e.setDisplayName(component);
+                expectedDisplayNames.put(e, component);
+            } else {
+                String username = e.getProfile().getName();
+                removeEntry(entry);
+                addEntry(new Entry.Builder(entry).name(username).displayName(displayName).build());
+            }
+        });
     }
 
     @Override
     public void updateLatency(@NotNull UUID entry, int latency) {
-        getEntry(entry).setLatency(latency);
+        getEntry(entry).ifPresent(e -> e.setLatency(latency));
     }
 
     @Override
     public void updateGameMode(@NotNull UUID entry, int gameMode) {
-        getEntry(entry).setGameMode(gameMode);
+        getEntry(entry).ifPresent(e -> e.setGameMode(gameMode));
     }
 
     @Override
     public void addEntry(@NotNull Entry entry) {
-        if (player.getPlayer().getTabList().containsEntry(entry.getUniqueId())) return;
-        player.getPlayer().getTabList().addEntry(TabListEntry.builder()
+        Component displayName = entry.getDisplayName() == null ? null : player.getPlatform().toComponent(entry.getDisplayName(), player.getVersion());
+        TabListEntry e = TabListEntry.builder()
                 .tabList(player.getPlayer().getTabList())
                 .profile(new GameProfile(
                         entry.getUniqueId(),
@@ -68,33 +73,60 @@ public class VelocityTabList implements TabList {
                 ))
                 .latency(entry.getLatency())
                 .gameMode(entry.getGameMode())
-                .displayName(entry.getDisplayName() == null ? null : entry.getDisplayName().toAdventureComponent(player.getVersion()))
-                .build());
+                .displayName(displayName)
+                .build();
+        player.getPlayer().getTabList().addEntry(e);
+        expectedDisplayNames.put(e, displayName);
     }
 
     @Override
     public void setPlayerListHeaderFooter(@NotNull IChatBaseComponent header, @NotNull IChatBaseComponent footer) {
         player.getPlayer().sendPlayerListHeaderAndFooter(
-                header.toAdventureComponent(player.getVersion()),
-                footer.toAdventureComponent(player.getVersion())
+                player.getPlatform().toComponent(header, player.getVersion()),
+                player.getPlatform().toComponent(footer, player.getVersion())
         );
     }
 
     /**
      * Returns TabList entry with specified UUID. If no such entry was found,
-     * a new, dummy entry is returned to avoid NPE.
+     * empty Optional is returned.
      *
      * @param   id
      *          UUID to get entry by
      * @return  TabList entry with specified UUID
      */
-    private TabListEntry getEntry(UUID id) {
-        for (TabListEntry entry : player.getPlayer().getTabList().getEntries()) {
-            if (entry.getProfile().getId().equals(id)) return entry;
+    @NotNull
+    private Optional<TabListEntry> getEntry(@NotNull UUID id) {
+        for (TabListEntry entry : getEntries()) {
+            if (entry.getProfile().getId().equals(id)) return Optional.of(entry);
         }
-        //return dummy entry to not cause NPE
-        //possibly add logging into the future to see when this happens
-        return TabListEntry.builder().tabList(player.getPlayer().getTabList())
-                .profile(new GameProfile(id, "", Collections.emptyList())).build();
+        return Optional.empty();
+    }
+
+    @Override
+    public void checkDisplayNames() {
+        for (TabListEntry entry : getEntries()) {
+            Component expectedComponent = expectedDisplayNames.get(entry);
+            if (expectedComponent != null && entry.getDisplayNameComponent().orElse(null) != expectedComponent) {
+                displayNameWrong(entry.getProfile().getName(), player);
+                entry.setDisplayName(expectedComponent);
+            }
+        }
+    }
+
+    /**
+     * Returns list of entries in player's TabList. This includes a try/catch
+     * to avoid {@link ConcurrentModificationException} when it's modified by the
+     * backend server while iterating.
+     *
+     * @return  A copy of TabList entries in player's TabList
+     */
+    private Collection<TabListEntry> getEntries() {
+        try {
+            return new ArrayList<>(player.getPlayer().getTabList().getEntries());
+        } catch (ConcurrentModificationException velocity) {
+            // TabList was modified by backend server during iteration
+            return getEntries();
+        }
     }
 }

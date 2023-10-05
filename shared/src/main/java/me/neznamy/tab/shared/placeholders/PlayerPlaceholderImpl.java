@@ -4,6 +4,7 @@ import java.util.*;
 import java.util.function.Function;
 
 import lombok.NonNull;
+import me.neznamy.tab.shared.features.PlaceholderManagerImpl;
 import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.api.placeholder.PlayerPlaceholder;
@@ -16,12 +17,6 @@ import org.jetbrains.annotations.Nullable;
  * Implementation of the PlayerPlaceholder interface
  */
 public class PlayerPlaceholderImpl extends TabPlaceholder implements PlayerPlaceholder {
-
-    /**
-     * Internal constant used to detect if placeholder threw an error.
-     * If so, placeholder's last known value is displayed.
-     */
-    private final String ERROR_VALUE = "ERROR";
 
     /** Placeholder function returning fresh output on request */
     @NonNull private final Function<me.neznamy.tab.api.TabPlayer, Object> function;
@@ -65,8 +60,11 @@ public class PlayerPlaceholderImpl extends TabPlaceholder implements PlayerPlace
         }
         if (!lastValues.containsKey(p) || (!ERROR_VALUE.equals(newValue) && !identifier.equals(newValue) && !newValue.equals(lastValues.getOrDefault(p, null)))) {
             lastValues.put(p, ERROR_VALUE.equals(newValue) ? identifier : newValue);
-            updateParents(p);
-            TAB.getInstance().getPlaceholderManager().getTabExpansion().setPlaceholderValue(p, identifier, newValue);
+            TAB.getInstance().getCPUManager().runMeasuredTask(TAB.getInstance().getPlaceholderManager().getFeatureName(),
+                    TabConstants.CpuUsageCategory.PLACEHOLDER_REFRESHING, () -> {
+                        updateParents(p);
+                        TAB.getInstance().getPlaceholderManager().getTabExpansion().setPlaceholderValue(p, identifier, newValue);
+                    });
             return true;
         }
         return false;
@@ -108,7 +106,16 @@ public class PlayerPlaceholderImpl extends TabPlaceholder implements PlayerPlace
 
     @Override
     public void update(@NonNull me.neznamy.tab.api.TabPlayer player) {
-        update((TabPlayer) player);
+        PlaceholderManagerImpl pm = TAB.getInstance().getPlaceholderManager();
+        TAB.getInstance().getCPUManager().runMeasuredTask(pm.getFeatureName(), TabConstants.CpuUsageCategory.PLACEHOLDER_REFRESHING, () -> {
+            if (update((TabPlayer) player)) {
+                for (Refreshable r : pm.getPlaceholderUsage().get(identifier)) {
+                    long startTime = System.nanoTime();
+                    r.refresh((TabPlayer) player, false);
+                    TAB.getInstance().getCPUManager().addTime(r.getFeatureName(), r.getRefreshDisplayName(), System.nanoTime() - startTime);
+                }
+            }
+        });
     }
 
     public void updateFromNested(@NonNull TabPlayer player) {
@@ -127,18 +134,24 @@ public class PlayerPlaceholderImpl extends TabPlaceholder implements PlayerPlace
     /**
      * Calls the placeholder request function and returns the output.
      * If the placeholder threw an exception, it is logged in {@code placeholder-errors.log}
-     * file and "ERROR" is returned.
+     * file and {@link #ERROR_VALUE} is returned.
      *
      * @param   p
      *          player to get placeholder value for
-     * @return  value placeholder returned or "ERROR" if it threw an error
+     * @return  value placeholder returned or {@link #ERROR_VALUE} if it threw an error
      */
     public Object request(@NonNull TabPlayer p) {
+        long time = System.currentTimeMillis();
         try {
             return function.apply(p);
         } catch (Throwable t) {
             TAB.getInstance().getErrorManager().placeholderError("Player placeholder " + identifier + " generated an error when setting for player " + p.getName(), t);
             return ERROR_VALUE;
+        } finally {
+            long timeDiff = System.currentTimeMillis() - time;
+            if (timeDiff > TabConstants.Placeholder.RETURN_TIME_WARN_THRESHOLD) {
+                TAB.getInstance().debug("Placeholder " + identifier + " took " + timeDiff + "ms to return value for player " + p.getName());
+            }
         }
     }
 }

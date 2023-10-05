@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 
-public record FabricTabList(FabricTabPlayer player) implements TabList {
+public record FabricTabList(@NotNull FabricTabPlayer player) implements TabList {
 
     @Override
     public void removeEntry(@NotNull UUID entry) {
@@ -27,7 +27,7 @@ public record FabricTabList(FabricTabPlayer player) implements TabList {
     @Override
     public void updateDisplayName(@NotNull UUID entry, @Nullable IChatBaseComponent displayName) {
         player.sendPacket(build(EnumSet.of(ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME),
-                new Builder(entry).setDisplayName(displayName == null ? null : FabricTAB.getInstance().toComponent(displayName, player.getVersion()))));
+                new Builder(entry).setDisplayName(displayName == null ? null : player.getPlatform().toComponent(displayName, player.getVersion()))));
     }
 
     @Override
@@ -47,18 +47,19 @@ public record FabricTabList(FabricTabPlayer player) implements TabList {
                 .setSkin(entry.getSkin())
                 .setGameMode(entry.getGameMode())
                 .setLatency(entry.getLatency())
-                .setDisplayName(entry.getDisplayName() == null ? null : FabricTAB.getInstance().toComponent(entry.getDisplayName(), player.getVersion()))));
+                .setDisplayName(entry.getDisplayName() == null ? null : player.getPlatform().toComponent(entry.getDisplayName(), player.getVersion()))));
     }
 
     @Override
     public void setPlayerListHeaderFooter(@NotNull IChatBaseComponent header, @NotNull IChatBaseComponent footer) {
         player.getPlayer().connection.send(new ClientboundTabListPacket(
-                FabricTAB.getInstance().toComponent(header, player.getVersion()),
-                FabricTAB.getInstance().toComponent(footer, player.getVersion()))
+                player.getPlatform().toComponent(header, player.getVersion()),
+                player.getPlatform().toComponent(footer, player.getVersion()))
         );
     }
 
-    private Packet<?> build(EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions, FabricTabList.Builder entry) {
+    @NotNull
+    private Packet<?> build(@NotNull EnumSet<ClientboundPlayerInfoUpdatePacket.Action> actions, @NotNull FabricTabList.Builder entry) {
         ClientboundPlayerInfoUpdatePacket packet = new ClientboundPlayerInfoUpdatePacket(actions, Collections.emptyList());
         packet.entries = Collections.singletonList(new ClientboundPlayerInfoUpdatePacket.Entry(
                 entry.getId(),
@@ -83,32 +84,39 @@ public record FabricTabList(FabricTabPlayer player) implements TabList {
         private int gameMode;
         @Nullable private Component displayName;
 
-        public Builder setName(String name) {
+        @NotNull
+        public Builder setName(@Nullable String name) {
             this.name = name;
             return this;
         }
 
-        public Builder setSkin(Skin skin) {
+        @NotNull
+        public Builder setSkin(@Nullable Skin skin) {
             this.skin = skin;
             return this;
         }
 
+        @NotNull
         public Builder setLatency(int latency) {
             this.latency = latency;
             return this;
         }
 
+        @NotNull
         public Builder setGameMode(int gameMode) {
             this.gameMode = gameMode;
             return this;
         }
 
-        public Builder setDisplayName(Component displayName) {
+        @NotNull
+        public Builder setDisplayName(@Nullable Component displayName) {
             this.displayName = displayName;
             return this;
         }
 
+        @Nullable
         public GameProfile createProfile() {
+            if (name == null) return null;
             GameProfile profile = new GameProfile(id, name);
             if (skin != null) {
                 profile.getProperties().put(TabList.TEXTURES_PROPERTY,

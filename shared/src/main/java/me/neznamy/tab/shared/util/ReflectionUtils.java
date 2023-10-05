@@ -34,6 +34,27 @@ public class ReflectionUtils {
     }
 
     /**
+     * Returns {@code true} if method with specified name and parameters exists in
+     * the class, {@code false} if not.
+     *
+     * @param   clazz
+     *          Class where the method is
+     * @param   method
+     *          Name of the method
+     * @param   parameterTypes
+     *          Method parameters
+     * @return  {@code true} if exists, {@code false} if not
+     */
+    public static boolean methodExists(@NotNull Class<?> clazz, @NotNull String method, @NotNull Class<?>... parameterTypes) {
+        try {
+            clazz.getMethod(method, parameterTypes);
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
+    }
+
+    /**
      * Returns all fields of class with defined class type
      *
      * @param   clazz
@@ -42,6 +63,7 @@ public class ReflectionUtils {
      *          field type to check for
      * @return  list of all fields with specified class type
      */
+    @NotNull
     public static List<Field> getFields(@NotNull Class<?> clazz, @NotNull Class<?> type) {
         List<Field> list = new ArrayList<>();
         for (Field field : clazz.getDeclaredFields()) {
@@ -63,10 +85,11 @@ public class ReflectionUtils {
      *          Parameter types of methods
      * @return  List of found methods matching requirements. If nothing is found, empty list is returned.
      */
+    @NotNull
     public static List<Method> getMethods(@NotNull Class<?> clazz, @NotNull Class<?> returnType, @NotNull Class<?>... parameterTypes) {
         List<Method> list = new ArrayList<>();
-        for (Method m : clazz.getDeclaredMethods()) {
-            if (m.getReturnType() != returnType || m.getParameterCount() != parameterTypes.length || !Modifier.isPublic(m.getModifiers())) continue;
+        for (Method m : clazz.getMethods()) {
+            if (!returnType.isAssignableFrom(m.getReturnType()) || m.getParameterCount() != parameterTypes.length) continue;
             Class<?>[] types = m.getParameterTypes();
             boolean valid = true;
             for (int i=0; i<types.length; i++) {
@@ -93,14 +116,8 @@ public class ReflectionUtils {
      * @throws  NoSuchMethodException
      *          if no such method exists
      */
+    @NotNull
     public static Method getMethod(@NotNull Class<?> clazz, @NotNull String[] names, @NotNull Class<?>... parameterTypes) throws NoSuchMethodException {
-        for (String name : names) {
-            try {
-                return clazz.getMethod(name, parameterTypes);
-            } catch (NoSuchMethodException e) {
-                //not the first method in array
-            }
-        }
         List<String> list = new ArrayList<>();
         for (Method m : clazz.getMethods()) {
             if (m.getParameterCount() != parameterTypes.length) continue;
@@ -112,7 +129,14 @@ public class ReflectionUtils {
                     break;
                 }
             }
-            if (valid) list.add(m.getName());
+            if (valid) {
+                for (String name : names) {
+                    if (m.getName().equals(name)) return m;
+                    String[] array = m.getName().split("_");
+                    if (array.length > 2 && array[2].equals(name)) return m; // Bukkit/Forge hybrids may sometimes use these mappings
+                }
+                list.add(m.getName());
+            }
         }
         throw new NoSuchMethodException("No method found with possible names " + Arrays.toString(names) + " with parameters " +
                 Arrays.toString(parameterTypes) + " in class " + clazz.getName() + ". Methods with matching parameters: " + list);
@@ -127,6 +151,7 @@ public class ReflectionUtils {
      *          Type of field
      * @return  List of instance fields with defined class type
      */
+    @NotNull
     public static List<Field> getInstanceFields(@NotNull Class<?> clazz, @NotNull Class<?> fieldType) {
         List<Field> list = new ArrayList<>();
         for (Field field : clazz.getDeclaredFields()) {
@@ -144,7 +169,8 @@ public class ReflectionUtils {
      *          Object to make accessible
      * @return  Provided object
      */
-    public static @NotNull <T extends AccessibleObject> T setAccessible(@NotNull T o) {
+    @NotNull
+    public static <T extends AccessibleObject> T setAccessible(@NotNull T o) {
         o.setAccessible(true);
         return o;
     }
@@ -159,7 +185,8 @@ public class ReflectionUtils {
      * @throws  IllegalStateException
      *          If class has more than 1 constructor or doesn't have any
      */
-    public static Constructor<?> getOnlyConstructor(Class<?> clazz) throws IllegalStateException {
+    @NotNull
+    public static Constructor<?> getOnlyConstructor(@NotNull Class<?> clazz) throws IllegalStateException {
         Constructor<?>[] constructors = clazz.getConstructors();
         if (constructors.length != 1) {
             throw new IllegalStateException("Class " + clazz.getName() + " is expected to have 1 constructor, but has " +
@@ -180,6 +207,7 @@ public class ReflectionUtils {
      * @throws  IllegalStateException
      *          If more than 1 field meets the criteria or if none do.
      */
+    @NotNull
     public static Field getOnlyField(@NotNull Class<?> clazz, @NotNull Class<?> type) throws IllegalStateException {
         List<Field> list = new ArrayList<>();
         for (Field field : clazz.getDeclaredFields()) {
@@ -209,20 +237,9 @@ public class ReflectionUtils {
      * @throws  IllegalStateException
      *          If more than 1 methods meets the criteria or if none do.
      */
+    @NotNull
     public static Method getOnlyMethod(@NotNull Class<?> clazz, @NotNull Class<?> returnType, @NotNull Class<?>... parameterTypes) {
-        List<Method> list = new ArrayList<>();
-        for (Method m : clazz.getDeclaredMethods()) {
-            if (m.getReturnType() != returnType || m.getParameterCount() != parameterTypes.length || !Modifier.isPublic(m.getModifiers())) continue;
-            Class<?>[] types = m.getParameterTypes();
-            boolean valid = true;
-            for (int i=0; i<types.length; i++) {
-                if (types[i] != parameterTypes[i]) {
-                    valid = false;
-                    break;
-                }
-            }
-            if (valid) list.add(m);
-        }
+        List<Method> list = getMethods(clazz, returnType, parameterTypes);
         if (list.size() != 1) {
             throw new IllegalStateException("Class " + clazz.getName() + " is expected to have 1 method with return type " +
                     returnType.getName() + " and parameters " + Arrays.toString(parameterTypes) + ", but has " +
@@ -241,12 +258,35 @@ public class ReflectionUtils {
      * @throws  IllegalStateException
      *          If class has more than 1 field or has none
      */
-    public static Field getOnlyField(Class<?> clazz) throws IllegalStateException{
+    @NotNull
+    public static Field getOnlyField(@NotNull Class<?> clazz) throws IllegalStateException{
         Field[] fields = clazz.getDeclaredFields();
         if (fields.length != 1) {
             throw new IllegalStateException("Class " + clazz.getName() + " is expected to have 1 field, but has " +
                     fields.length + ": " + Arrays.stream(fields).map(Field::getName).collect(Collectors.toList()));
         }
         return setAccessible(fields[0]);
+    }
+
+    /**
+     * Returns field from given possible names
+     *
+     * @param   clazz
+     *          Class to get field from
+     * @param   names
+     *          All possible names of the field
+     * @return  Field from given potential names
+     * @throws  IllegalArgumentException
+     *          If no such field is found
+     */
+    @NotNull
+    public static Field getField(@NotNull Class<?> clazz, @NotNull String... names) throws IllegalArgumentException {
+        for (String name : names) {
+            try {
+                return setAccessible(clazz.getDeclaredField(name));
+            } catch (NoSuchFieldException ignored) {}
+        }
+        throw new IllegalArgumentException("Class " + clazz.getName() + " does not contain a field with potential names " +
+                Arrays.toString(names));
     }
 }

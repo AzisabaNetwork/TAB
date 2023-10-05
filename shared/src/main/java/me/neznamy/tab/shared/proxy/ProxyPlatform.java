@@ -2,6 +2,8 @@ package me.neznamy.tab.shared.proxy;
 
 import lombok.Getter;
 import me.neznamy.tab.shared.GroupManager;
+import me.neznamy.tab.shared.ProtocolVersion;
+import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.hook.LuckPermsHook;
 import me.neznamy.tab.shared.placeholders.expansion.TabExpansion;
 import me.neznamy.tab.shared.platform.TabPlayer;
@@ -24,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Abstract class containing common variables and methods
  * shared between proxies.
  */
-public abstract class ProxyPlatform implements Platform {
+public abstract class ProxyPlatform<T> implements Platform<T> {
 
     /** Plugin message handler for sending and receiving plugin messages */
     @Getter protected final PluginMessageHandler pluginMessageHandler = new PluginMessageHandler();
@@ -66,6 +68,9 @@ public abstract class ProxyPlatform implements Platform {
 
     @Override
     public void registerPlaceholders() {
+        TAB.getInstance().getPlaceholderManager().registerServerPlaceholder(TabConstants.Placeholder.TPS, -1,
+                () -> "\"tps\" is a backend-only placeholder as the proxy does not tick anything. If you wish to display TPS of " +
+                        "the server player is connected to, use placeholders from PlaceholderAPI and install TAB-Bridge for forwarding support to the proxy.");
         new UniversalPlaceholderRegistry().registerPlaceholders(TAB.getInstance().getPlaceholderManager());
     }
 
@@ -80,4 +85,15 @@ public abstract class ProxyPlatform implements Platform {
     public @NotNull TabExpansion createTabExpansion() {
         return new ProxyTabExpansion();
     }
+
+    @Override
+    public ProtocolVersion getServerVersion() {
+        return ProtocolVersion.PROXY;
+    }
+
+    /**
+     * Registers plugin's plugin message channel
+     */
+    public abstract void registerChannel();
+
 }

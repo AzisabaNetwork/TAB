@@ -13,7 +13,6 @@ import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -33,6 +32,7 @@ public class FabricTabCommand {
         dispatcher.getRoot().addChild(command);
     }
 
+    @NotNull
     private String[] getArguments(@NotNull CommandContext<CommandSourceStack> context) {
         String input = context.getInput();
         int firstSpace = input.indexOf(' ');
@@ -48,10 +48,10 @@ public class FabricTabCommand {
 
     private int executeCommand(@NotNull CommandSourceStack source, @NotNull String[] args) {
         if (TAB.getInstance().isPluginDisabled()) {
-            boolean hasReloadPermission = FabricTAB.getInstance().hasPermission(source, TabConstants.Permission.COMMAND_RELOAD);
-            boolean hasAdminPermission = FabricTAB.getInstance().hasPermission(source, TabConstants.Permission.COMMAND_ALL);
+            boolean hasReloadPermission = FabricTAB.hasPermission(source, TabConstants.Permission.COMMAND_RELOAD);
+            boolean hasAdminPermission = FabricTAB.hasPermission(source, TabConstants.Permission.COMMAND_ALL);
             for (String message : TAB.getInstance().getDisabledCommand().execute(args, hasReloadPermission, hasAdminPermission)) {
-                source.sendSystemMessage(Component.Serializer.fromJson(IChatBaseComponent.optimizedComponent(message).toString()));
+                source.sendSystemMessage(((FabricPlatform)TAB.getInstance().getPlatform()).toComponent(IChatBaseComponent.optimizedComponent(message), TAB.getInstance().getServerVersion()));
             }
         } else {
             if (source.getEntity() == null) {
@@ -64,20 +64,23 @@ public class FabricTabCommand {
         return 0;
     }
 
-    private @NotNull CompletableFuture<Suggestions> getSuggestions(@NotNull CommandSourceStack source, @NotNull String[] args, @NotNull SuggestionsBuilder builder) {
+    @NotNull
+    private CompletableFuture<Suggestions> getSuggestions(@NotNull CommandSourceStack source, @NotNull String[] args,
+                                                          @NotNull SuggestionsBuilder builder) {
         TabPlayer player = null;
         if (source.getEntity() != null) {
             player = TAB.getInstance().getPlayer(source.getEntity().getUUID());
             if (player == null) return Suggestions.empty();
         }
 
-        int lastSpace = builder.getRemaining().lastIndexOf(' ');
+        SuggestionsBuilder newBuilder = builder;
+        int lastSpace = newBuilder.getRemaining().lastIndexOf(' ');
         if (lastSpace != -1) {
-            builder = builder.createOffset(lastSpace + 1 + builder.getStart());
+            newBuilder = newBuilder.createOffset(lastSpace + 1 + newBuilder.getStart());
         }
         for (String suggestion : TAB.getInstance().getCommand().complete(player, args)) {
-            builder.suggest(suggestion);
+            newBuilder.suggest(suggestion);
         }
-        return builder.buildFuture();
+        return newBuilder.buildFuture();
     }
 }

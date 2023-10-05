@@ -161,7 +161,12 @@ public class BossBarLine implements BossBar {
             if (value > 100) value = 100;
             return value;
         } catch (NumberFormatException e) {
-            TAB.getInstance().getMisconfigurationHelper().invalidNumberForBossBarProgress(name, progress, player.getProperty(propertyProgress).getCurrentRawValue());
+            TAB.getInstance().getMisconfigurationHelper().invalidNumberForBossBarProgress(
+                    name,
+                    progress,
+                    player.getProperty(propertyProgress).getCurrentRawValue(),
+                    player
+            );
             return 100;
         }
     }
@@ -250,6 +255,11 @@ public class BossBarLine implements BossBar {
     @Override
     public @NotNull List<me.neznamy.tab.api.TabPlayer> getPlayers() {
         return players.stream().filter(TabPlayer::isOnline).collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean containsPlayer(me.neznamy.tab.api.TabPlayer player) {
+        return players.contains((TabPlayer) player);
     }
 
     public class TextRefresher extends TabFeature implements Refreshable {

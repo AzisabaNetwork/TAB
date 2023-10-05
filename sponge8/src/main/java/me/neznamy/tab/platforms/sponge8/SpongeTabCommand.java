@@ -3,10 +3,10 @@ package me.neznamy.tab.platforms.sponge8;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.platform.TabPlayer;
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import org.jetbrains.annotations.NotNull;
 import org.spongepowered.api.command.Command;
 import org.spongepowered.api.command.CommandCause;
 import org.spongepowered.api.command.CommandCompletion;
@@ -24,24 +24,22 @@ import java.util.stream.Collectors;
 public class SpongeTabCommand implements Command.Raw {
 
     @Override
-    public CommandResult process(CommandCause cause, ArgumentReader.Mutable arguments) {
+    @NotNull
+    public CommandResult process(@NotNull CommandCause cause, @NotNull ArgumentReader.Mutable arguments) {
         String[] args = arguments.input().split(" ");
 
         if (TAB.getInstance().isPluginDisabled()) {
             boolean hasReloadPermission = cause.hasPermission(TabConstants.Permission.COMMAND_RELOAD);
             boolean hasAdminPermission = cause.hasPermission(TabConstants.Permission.COMMAND_ALL);
-
             List<String> messages = TAB.getInstance().getDisabledCommand().execute(args, hasReloadPermission, hasAdminPermission);
             for (String message : messages) {
                 cause.sendMessage(Identity.nil(), LegacyComponentSerializer.legacySection().deserialize(message));
             }
             return CommandResult.success();
         }
-
         TabPlayer player = null;
-        Audience audience = cause.audience();
-        if (audience instanceof Player) {
-            player = TAB.getInstance().getPlayer(((Player) audience).uniqueId());
+        if (cause.audience() instanceof Player) {
+            player = TAB.getInstance().getPlayer(((Player) cause.audience()).uniqueId());
             if (player == null) return CommandResult.success(); // Player not loaded correctly
         }
         TAB.getInstance().getCommand().execute(player, args);
@@ -49,7 +47,8 @@ public class SpongeTabCommand implements Command.Raw {
     }
 
     @Override
-    public List<CommandCompletion> complete(CommandCause cause, ArgumentReader.Mutable arguments) {
+    @NotNull
+    public List<CommandCompletion> complete(@NotNull CommandCause cause, @NotNull ArgumentReader.Mutable arguments) {
         TabPlayer player = null;
         Player source = cause.context().get(EventContextKeys.PLAYER).orElse(null);
         if (source != null) {
@@ -65,22 +64,25 @@ public class SpongeTabCommand implements Command.Raw {
     }
 
     @Override
-    public boolean canExecute(CommandCause cause) {
+    public boolean canExecute(@NotNull CommandCause cause) {
         return true;
     }
 
     @Override
-    public Optional<Component> shortDescription(CommandCause cause) {
+    @NotNull
+    public Optional<Component> shortDescription(@NotNull CommandCause cause) {
         return Optional.empty();
     }
 
     @Override
-    public Optional<Component> extendedDescription(CommandCause cause) {
+    @NotNull
+    public Optional<Component> extendedDescription(@NotNull CommandCause cause) {
         return Optional.empty();
     }
 
     @Override
-    public Component usage(CommandCause cause) {
+    @NotNull
+    public Component usage(@NotNull CommandCause cause) {
         return Component.empty();
     }
 }

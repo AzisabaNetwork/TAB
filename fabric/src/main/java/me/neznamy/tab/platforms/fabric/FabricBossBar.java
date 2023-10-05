@@ -15,13 +15,16 @@ import org.jetbrains.annotations.NotNull;
 @RequiredArgsConstructor
 public class FabricBossBar implements BossBar {
 
+    @NotNull
     private final FabricTabPlayer player;
+
+    @NotNull
     private final Map<UUID, ServerBossEvent> bars = new HashMap<>();
 
     @Override
     public void create(@NotNull UUID id, @NotNull String title, float progress, @NotNull BarColor color, @NotNull BarStyle style) {
         ServerBossEvent bar = new ServerBossEvent(
-                FabricTAB.getInstance().toComponent(IChatBaseComponent.optimizedComponent(title), player.getVersion()),
+                player.getPlatform().toComponent(IChatBaseComponent.optimizedComponent(title), player.getVersion()),
                 BossEvent.BossBarColor.valueOf(color.name()),
                 BossEvent.BossBarOverlay.valueOf(style.name())
         );
@@ -32,7 +35,7 @@ public class FabricBossBar implements BossBar {
 
     @Override
     public void update(@NotNull UUID id, @NotNull String title) {
-        bars.get(id).setName(FabricTAB.getInstance().toComponent(IChatBaseComponent.optimizedComponent(title), player.getVersion()));
+        bars.get(id).setName(player.getPlatform().toComponent(IChatBaseComponent.optimizedComponent(title), player.getVersion()));
     }
 
     @Override

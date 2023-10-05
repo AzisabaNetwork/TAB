@@ -82,7 +82,7 @@ public class TabConstants {
 
         public static final String COMMAND_BOSSBAR_ANNOUNCE         = "tab.announce.bar";
         public static final String COMMAND_BOSSBAR_TOGGLE           = "tab.bossbar.toggle";
-        public static final String COMMAND_BOSSBAR_SEND             = "tab.send.bar";
+        public static final String COMMAND_BOSSBAR_TOGGLE_OTHER     = "tab.bossbar.toggle.other";
 
         public static final String COMMAND_MYSQL_DOWNLOAD           = "tab.mysql.download";
         public static final String COMMAND_MYSQL_UPLOAD             = "tab.mysql.upload";
@@ -192,6 +192,7 @@ public class TabConstants {
         public static final String UNLIMITED_NAME_TAGS = "NameTagX";
         public static final String UNLIMITED_NAME_TAGS_PACKET_LISTENER = "nametagx-packet";
         public static final String UNLIMITED_NAME_TAGS_VEHICLE_REFRESHER = "nametagx-vehicle";
+        public static final String PING_SPOOF = "PingSpoof";
 
         //Bukkit only
         public static final String PER_WORLD_PLAYER_LIST = "PerWorldPlayerList";
@@ -203,6 +204,7 @@ public class TabConstants {
 
         //additional info displayed in cpu command
         public static final String PACKET_DESERIALIZING = "Packet deserializing";
+        public static final String NICK_COMPATIBILITY = "Nick";
 
         public static String scoreboardLine(String line) {
             return "scoreboard-" + line;
@@ -280,6 +282,7 @@ public class TabConstants {
         public static final String HEALTH = "%health%";
 
         public static final int MINIMUM_REFRESH_INTERVAL = 50;
+        public static final int RETURN_TIME_WARN_THRESHOLD = 50;
 
         public static String condition(String name) {
             return "%condition:" + name + "%";
@@ -302,7 +305,6 @@ public class TabConstants {
 
         public static final String PERMISSION_SYSTEM = "permission_system";
         public static final String GLOBAL_PLAYER_LIST_ENABLED = "global_playerlist_enabled";
-        public static final String PLACEHOLDER_API = "placeholderapi";
         public static final String SERVER_VERSION = "server_version";
         public static final String UNLIMITED_NAME_TAG_MODE_ENABLED = "unlimited_nametag_mode_enabled";
 

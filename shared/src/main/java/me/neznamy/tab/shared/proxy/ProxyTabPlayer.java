@@ -10,7 +10,6 @@ import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.features.nametags.unlimited.NameTagX;
-import me.neznamy.tab.shared.placeholders.expansion.EmptyTabExpansion;
 import me.neznamy.tab.shared.placeholders.expansion.TabExpansion;
 import org.jetbrains.annotations.NotNull;
 
@@ -51,6 +50,8 @@ public abstract class ProxyTabPlayer extends TabPlayer {
      * Constructs new instance with given parameters and sends a message
      * to bridge about this player joining with join data
      *
+     * @param   platform
+     *          Server platform
      * @param   player
      *          platform-specific player object
      * @param   uniqueId
@@ -62,8 +63,9 @@ public abstract class ProxyTabPlayer extends TabPlayer {
      * @param   protocolVersion
      *          Player's protocol network id
      */
-    protected ProxyTabPlayer(@NotNull Object player, @NotNull UUID uniqueId, @NotNull String name, @NotNull String server, int protocolVersion) {
-        super(player, uniqueId, name, server, "N/A", protocolVersion, TAB.getInstance().getConfiguration().isOnlineUuidInTabList());
+    protected ProxyTabPlayer(@NotNull ProxyPlatform<?> platform, @NotNull Object player, @NotNull UUID uniqueId,
+                             @NotNull String name, @NotNull String server, int protocolVersion) {
+        super(platform, player, uniqueId, name, server, "N/A", protocolVersion, TAB.getInstance().getConfiguration().isOnlineUuidInTabList());
         sendJoinPluginMessage();
     }
 
@@ -79,9 +81,8 @@ public abstract class ProxyTabPlayer extends TabPlayer {
                 getVersion().getNetworkId(),
                 TAB.getInstance().getGroupManager().getPermissionPlugin().contains("Vault") &&
                         !TAB.getInstance().getGroupManager().isGroupsByPermissions(),
-                !(expansion instanceof EmptyTabExpansion));
-        ProxyPlatform platform = (ProxyPlatform) TAB.getInstance().getPlatform();
-        Map<String, Integer> placeholders = platform.getBridgePlaceholders();
+                true);
+        Map<String, Integer> placeholders = ((ProxyPlatform<?>) getPlatform()).getBridgePlaceholders();
         args.add(placeholders.size());
         for (Map.Entry<String, Integer> entry : placeholders.entrySet()) {
             args.add(entry.getKey());
@@ -193,5 +194,17 @@ public abstract class ProxyTabPlayer extends TabPlayer {
         } else if (value instanceof Double) {
             out.writeDouble((double) value);
         } else throw new IllegalArgumentException("Unhandled message data type " + value.getClass().getName());
+    }
+
+    /**
+     * Prints an error message saying player was not connected to any server,
+     * therefore plugin message could not be sent.
+     *
+     * @param   message
+     *          Message that failed to send
+     */
+    public void errorNoServer(byte[] message) {
+        TAB.getInstance().getErrorManager().printError("Skipped plugin message send to " + getName() + ", because player is not" +
+                "connected to any server (message=" + new String(message) + ")");
     }
 }

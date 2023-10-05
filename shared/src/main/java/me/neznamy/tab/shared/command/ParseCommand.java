@@ -1,7 +1,7 @@
 package me.neznamy.tab.shared.command;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,8 +34,15 @@ public class ParseCommand extends SubCommand {
             return;
         }
         TabPlayer target;
-        if (args[0].equals("me") && sender != null) {
-            target = sender;
+        if (args[0].equals("me")) {
+            if (sender != null) {
+                target = sender;
+            } else {
+                sendMessage(null, "&cThe \"me\" argument instead of player name is only available in-game " +
+                        "and parses the placeholder for player who ran the command. If you wish to use the parse command " +
+                        "from the console, use name of an online player instead of \"me\".");
+                return;
+            }
         } else {
             target = TAB.getInstance().getPlayer(args[0]);
             if (target == null) {
@@ -57,17 +64,19 @@ public class ParseCommand extends SubCommand {
             TAB.getInstance().getErrorManager().printError("Placeholder " + replaced + " threw an exception when parsing for player " + target.getName(), e, true);
             return;
         }
-        IChatBaseComponent colored = IChatBaseComponent.optimizedComponent("With colors: " + replaced);
+        IChatBaseComponent colored = IChatBaseComponent.optimizedComponent(EnumChatFormat.color("&3Colored output: &e\"&r" + replaced + "&e\""));
         if (sender != null) {
             sender.sendMessage(colored);
         } else {
-            sendRawMessage(null, colored.toLegacyText());
+            TAB.getInstance().getPlatform().logInfo(colored);
         }
-        sendRawMessage(sender, "Without colors: " + EnumChatFormat.decolor(replaced));
+        sendRawMessage(sender, EnumChatFormat.color("&3Raw colors: &e\"&r") + EnumChatFormat.decolor(replaced) + EnumChatFormat.color("&e\""));
+        sendRawMessage(sender, EnumChatFormat.color("&3Output length: &e" + replaced.length() + " &3characters"));
     }
 
     @Override
-    public @NotNull List<String> complete(@Nullable TabPlayer sender, @NotNull String[] arguments) {
+    @NotNull
+    public List<String> complete(@Nullable TabPlayer sender, @NotNull String[] arguments) {
         if (arguments.length == 1) {
             List<String> suggestions = getOnlinePlayers(arguments[0]);
             if ("me".startsWith(arguments[0].toLowerCase())) suggestions.add("me");
@@ -77,6 +86,6 @@ public class ParseCommand extends SubCommand {
             return TAB.getInstance().getPlaceholderManager().getAllPlaceholders().stream().map(Placeholder::getIdentifier)
                     .filter(placeholder -> placeholder.toLowerCase().startsWith(arguments[1].toLowerCase())).collect(Collectors.toList());
         }
-        return new ArrayList<>();
+        return Collections.emptyList();
     }
 }

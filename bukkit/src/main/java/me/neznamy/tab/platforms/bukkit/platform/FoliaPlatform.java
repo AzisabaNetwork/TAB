@@ -5,6 +5,7 @@ import me.clip.placeholderapi.PlaceholderAPI;
 import me.neznamy.tab.platforms.bukkit.features.PerWorldPlayerList;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
+import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.placeholders.PlayerPlaceholderImpl;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import org.bukkit.entity.Entity;
@@ -12,6 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.function.Consumer;
 
@@ -20,7 +22,7 @@ import java.util.function.Consumer;
  */
 public class FoliaPlatform extends BukkitPlatform {
 
-    public FoliaPlatform(JavaPlugin plugin) {
+    public FoliaPlatform(@NotNull JavaPlugin plugin) {
         super(plugin);
     }
 
@@ -29,8 +31,8 @@ public class FoliaPlatform extends BukkitPlatform {
         super.loadPlayers();
 
         // Values are never updated in the API, warn users
-        TAB.getInstance().sendConsoleMessage("&cFolia never updates MSPT and TPS values in the API, making " +
-                "%mspt% and %tps% return the default values (0 and 20).", true);
+        logWarn(new IChatBaseComponent("Folia never updates MSPT and TPS values in the API, making " +
+                "%mspt% and %tps% return the default values (0 and 20)."));
 
         // Folia never calls PlayerChangedWorldEvent, this is a workaround
         TAB.getInstance().getCPUManager().startRepeatingMeasuredTask(100, "Folia compatibility", "Refreshing world", () -> {
@@ -48,7 +50,7 @@ public class FoliaPlatform extends BukkitPlatform {
     }
 
     @Override
-    public void registerSyncPlaceholder(String identifier, int refresh) {
+    public void registerSyncPlaceholder(@NotNull String identifier, int refresh) {
         String syncedPlaceholder = "%" + identifier.substring(6);
         PlayerPlaceholderImpl[] ppl = new PlayerPlaceholderImpl[1];
         ppl[0] = TAB.getInstance().getPlaceholderManager().registerPlayerPlaceholder(identifier, refresh, p -> {
@@ -74,7 +76,7 @@ public class FoliaPlatform extends BukkitPlatform {
      */
     @SneakyThrows
     @SuppressWarnings("JavaReflectionMemberAccess")
-    private void runSync(Entity entity, Runnable task) {
+    private void runSync(@NotNull Entity entity, @NotNull Runnable task) {
         Object entityScheduler = Entity.class.getMethod("getScheduler").invoke(entity);
         Consumer<?> consumer = $ -> task.run(); // Reflection and lambdas don't go together
         entityScheduler.getClass().getMethod("run", Plugin.class, Consumer.class, Runnable.class)
@@ -82,7 +84,7 @@ public class FoliaPlatform extends BukkitPlatform {
     }
 
     @Override
-    public void runEntityTask(Entity entity, Runnable task) {
+    public void runEntityTask(@NotNull Entity entity, @NotNull Runnable task) {
         runSync(entity, task);
     }
 }

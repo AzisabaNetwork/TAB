@@ -251,6 +251,26 @@ public class FeatureManager {
         }
     }
 
+    public void onEntryAdd(TabPlayer packetReceiver, UUID id, String name) {
+        for (TabFeature f : values) {
+            if (!(f instanceof EntryAddListener)) continue;
+            long time = System.nanoTime();
+            ((EntryAddListener)f).onEntryAdd(packetReceiver, id, name);
+            TAB.getInstance().getCPUManager().addTime(f, TabConstants.CpuUsageCategory.PACKET_PLAYER_INFO, System.nanoTime() - time);
+        }
+    }
+
+    public int onLatencyChange(TabPlayer packetReceiver, UUID id, int latency) {
+        int newLatency = latency;
+        for (TabFeature f : values) {
+            if (!(f instanceof LatencyListener)) continue;
+            long time = System.nanoTime();
+            newLatency = ((LatencyListener)f).onLatencyChange(packetReceiver, id, newLatency);
+            TAB.getInstance().getCPUManager().addTime(f, TabConstants.CpuUsageCategory.PACKET_PLAYER_INFO, System.nanoTime() - time);
+        }
+        return newLatency;
+    }
+
     public void registerFeature(@NotNull String featureName, @NotNull TabFeature featureHandler) {
         features.put(featureName, featureHandler);
         values = features.values().toArray(new TabFeature[0]);
@@ -284,6 +304,9 @@ public class FeatureManager {
         FeatureManager featureManager = TAB.getInstance().getFeatureManager();
         int minorVersion = TAB.getInstance().getServerVersion().getMinorVersion();
 
+        if (configuration.getConfig().getBoolean("ping-spoof.enabled", false))
+            featureManager.registerFeature(TabConstants.Feature.PING_SPOOF, new PingSpoof());
+
         if (configuration.getConfig().getBoolean("bossbar.enabled", false)) {
             featureManager.registerFeature(TabConstants.Feature.BOSS_BAR,
                     minorVersion >= 9 ? new BossBarManagerImpl() : TAB.getInstance().getPlatform().getLegacyBossBar());
@@ -306,6 +329,9 @@ public class FeatureManager {
         if (configuration.getConfig().getBoolean("per-world-playerlist.enabled", false)) {
             TabFeature pwp = TAB.getInstance().getPlatform().getPerWorldPlayerList();
             if (pwp != null) featureManager.registerFeature(TabConstants.Feature.PER_WORLD_PLAYER_LIST, pwp);
+            if (configuration.getConfig().getBoolean("layout.enabled", false)) {
+                TAB.getInstance().getMisconfigurationHelper().bothPerWorldPlayerListAndLayoutEnabled();
+            }
         }
 
         if (configuration.getConfig().getBoolean("yellow-number-in-tablist.enabled", true))
@@ -337,6 +363,12 @@ public class FeatureManager {
         // Must be loaded after: Sorting
         if (minorVersion >= 8 && configuration.getConfig().getBoolean("layout.enabled", false)) {
             featureManager.registerFeature(TabConstants.Feature.LAYOUT, new LayoutManagerImpl());
+            if (configuration.getConfig().getBoolean("yellow-number-in-tablist.enabled", true)) {
+                TAB.getInstance().getMisconfigurationHelper().layoutBreaksYellowNumber();
+            }
+            if (configuration.getConfig().getBoolean("prevent-spectator-effect.enabled", false)) {
+                TAB.getInstance().getMisconfigurationHelper().layoutIncludesPreventSpectatorEffect();
+            }
         }
 
         // Must be loaded after: Layout
@@ -360,5 +392,7 @@ public class FeatureManager {
         // Must be loaded after: Global PlayerList, PlayerList, NameTags, YellowNumber, BelowName
         RedisSupport redis = TAB.getInstance().getPlatform().getRedisSupport();
         if (redis != null) TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.REDIS_BUNGEE, redis);
+
+        featureManager.registerFeature(TabConstants.Feature.NICK_COMPATIBILITY, new NickCompatibility());
     }
 }

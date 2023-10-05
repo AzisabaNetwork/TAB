@@ -4,16 +4,14 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
 import me.neznamy.tab.shared.TAB;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 
 /**
@@ -185,7 +183,7 @@ public abstract class ConfigurationFile {
         Object value = getObject(path, defaultValue);
         if (value == null) return defaultValue;
         if (!(value instanceof List)) {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
         List<String> fixedList = new ArrayList<>();
         for (Object key : (List<Object>)value) {
@@ -273,7 +271,7 @@ public abstract class ConfigurationFile {
      *          Path to the option with sections separated with "{@code .}"
      * @return  value from configuration file as {@code Map<K, V>}
      */
-    public <K, V> Map<K, V> getConfigurationSection(@NonNull String path) {
+    public @NotNull <K, V> Map<K, V> getConfigurationSection(@NonNull String path) {
         if (path.length() == 0) return (Map<K, V>) values;
         Object value = getObject(path, null);
         if (value instanceof Map) {

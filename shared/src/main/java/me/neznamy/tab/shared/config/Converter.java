@@ -3,6 +3,7 @@ package me.neznamy.tab.shared.config;
 import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
+import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.config.file.ConfigurationFile;
 import me.neznamy.tab.shared.config.file.YamlConfigurationFile;
 import org.jetbrains.annotations.NotNull;
@@ -24,7 +25,7 @@ public class Converter {
 
     public void convert2810to290(@NotNull ConfigurationFile animations) {
         if (animations.getValues().size() == 1 && animations.getValues().containsKey("animations")) {
-            TAB.getInstance().sendConsoleMessage("&ePerforming configuration conversion from 2.8.10 to 2.9.0", true);
+            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 2.8.10 to 2.9.0"));
             animations.setValues(animations.getConfigurationSection("animations"));
             animations.save();
         }
@@ -41,7 +42,7 @@ public class Converter {
      */
     public void convert292to300(@NotNull ConfigurationFile currentConfig) throws IOException {
         if (!currentConfig.hasConfigOption("change-nametag-prefix-suffix")) return;
-        TAB.getInstance().sendConsoleMessage("&ePerforming configuration conversion from 2.9.2 to 3.0.0",true);
+        TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 2.9.2 to 3.0.0"));
 
         File folder = TAB.getInstance().getDataFolder();
         moveOldFiles();
@@ -189,16 +190,14 @@ public class Converter {
         Map<String, List<Object>> perWorldBossBars = bossBar.getConfigurationSection("per-world");
         List<Object> activeBossBars = new ArrayList<>(bossBar.getStringList("default-bars", new ArrayList<>()));
         String separator = TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY ? "server" : "world";
-        if (perWorldBossBars != null) {
-            for (Map.Entry<String, List<Object>> entry : perWorldBossBars.entrySet()) {
-                for (Object bar : entry.getValue()) {
-                    if (!bars.containsKey(bar)) continue;
-                    activeBossBars.add(bar);
-                    if (bars.get(bar).containsKey("display-condition")) {
-                        bars.get(bar).put("display-condition", bars.get(bar).get("display-condition") + ";%" + separator + "%=" + entry.getKey());
-                    } else {
-                        bars.get(bar).put("display-condition", "%" + separator + "%=" + entry.getKey());
-                    }
+        for (Map.Entry<String, List<Object>> entry : perWorldBossBars.entrySet()) {
+            for (Object bar : entry.getValue()) {
+                if (!bars.containsKey(bar)) continue;
+                activeBossBars.add(bar);
+                if (bars.get(bar).containsKey("display-condition")) {
+                    bars.get(bar).put("display-condition", bars.get(bar).get("display-condition") + ";%" + separator + "%=" + entry.getKey());
+                } else {
+                    bars.get(bar).put("display-condition", "%" + separator + "%=" + entry.getKey());
                 }
             }
         }
@@ -354,21 +353,21 @@ public class Converter {
 
     public void convert301to302(@NotNull ConfigurationFile config) {
         if (!config.hasConfigOption("placeholders.remove-strings")) return;
-        TAB.getInstance().sendConsoleMessage("&ePerforming configuration conversion from 3.0.1 to 3.0.2", true);
+        TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 3.0.1 to 3.0.2"));
         config.set("placeholders.remove-strings", null);
     }
 
     public void convert331to332(@NotNull ConfigurationFile config) {
         if (!config.hasConfigOption("scoreboard-teams.unlimited-nametag-mode.use-marker-tag-for-1-8-x-clients")) return;
-        TAB.getInstance().sendConsoleMessage("&ePerforming configuration conversion from 3.3.1 to 3.3.2", true);
+        TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 3.3.1 to 3.3.2)"));
         config.set("scoreboard-teams.unlimited-nametag-mode.use-marker-tag-for-1-8-x-clients", null);
     }
 
     @SuppressWarnings("unchecked")
     public void convert332to400(@NotNull ConfigurationFile config) throws IOException {
-        if (config.hasConfigOption("ping-spoof.enabled")) {
-            TAB.getInstance().sendConsoleMessage("&ePerforming configuration conversion from 3.3.2 to 4.0.0", true);
-            config.set("ping-spoof", null);
+        // Removed config options
+        if (config.hasConfigOption("fix-pet-names")) {
+            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 3.3.2 to 4.0.0"));
             config.set("fix-pet-names", null);
             config.set("bossbar.disable-in-worlds", null);
             config.set("bossbar.disable-in-servers", null);
@@ -377,25 +376,29 @@ public class Converter {
             config.set("remove-ghost-players", null);
             config.set("global-playerlist.fill-profile-key", null);
         }
-        if (config.hasConfigOption("placeholderapi-refresh-intervals.server")) {
-            Map<String, Object> intervals = config.getConfigurationSection("placeholderapi-refresh-intervals");
-            Map<String, Object> server = config.getConfigurationSection("placeholderapi-refresh-intervals.server");
-            Map<String, Object> player = config.getConfigurationSection("placeholderapi-refresh-intervals.player");
-            Map<String, Object> relational = config.getConfigurationSection("placeholderapi-refresh-intervals.relational");
-            intervals.remove("server");
-            intervals.remove("player");
-            intervals.remove("relational");
-            intervals.putAll(server);
-            intervals.putAll(player);
-            intervals.putAll(relational);
-            config.save();
+
+        // Merged refresh intervals
+        Map<Object, Object> intervals = config.getConfigurationSection("placeholderapi-refresh-intervals");
+        boolean updated = false;
+        for (Map.Entry<?, ?> entry : new ArrayList<>(intervals.entrySet())) {
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                intervals.remove(entry.getKey());
+                intervals.putAll(((Map<Object, Object>)value));
+                updated = true;
+            }
         }
+        if (updated) config.save();
+
+        // Merge layout to config
         File layoutFile = new File(TAB.getInstance().getDataFolder(), "layout.yml");
         if (layoutFile.exists()) {
             ConfigurationFile layout = new YamlConfigurationFile(null, layoutFile);
             config.set("layout", layout.getValues());
             Files.delete(layoutFile.toPath());
         }
+
+        // Convert disabled worlds/servers into disable condition
         Consumer<Map<String, Object>> disabledConditionConverter = (map -> {
             List<String> newConditions = new ArrayList<>();
             boolean update = false;
@@ -422,6 +425,18 @@ public class Converter {
         disabledConditionConverter.accept(config.getConfigurationSection("scoreboard-teams.unlimited-nametag-mode"));
         disabledConditionConverter.accept(config.getConfigurationSection("yellow-number-in-tablist"));
         disabledConditionConverter.accept(config.getConfigurationSection("belowname-objective"));
+
+        // Removed config option
         if (config.hasConfigOption("layout.hide-vanished-players")) config.set("layout.hide-vanished-players", null);
+    }
+
+    public void convert403to404(@NotNull ConfigurationFile config) {
+        if (config.hasConfigOption("placeholders.register-tab-expansion")) {
+            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 4.0.3 to 4.0.4"));
+            config.set("placeholders.register-tab-expansion", null);
+        }
+        if (config.hasConfigOption("global-playerlist.update-latency")) {
+            config.set("global-playerlist.update-latency", null);
+        }
     }
 }

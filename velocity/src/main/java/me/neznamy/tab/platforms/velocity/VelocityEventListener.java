@@ -13,28 +13,29 @@ import me.neznamy.tab.shared.features.bossbar.BossBarManagerImpl;
 import me.neznamy.tab.shared.features.scoreboard.ScoreboardManagerImpl;
 import me.neznamy.tab.shared.platform.EventListener;
 import me.neznamy.tab.shared.platform.TabPlayer;
+import org.jetbrains.annotations.NotNull;
 
 /**
- * The core for velocity forwarding events into all enabled features
+ * The core for Velocity forwarding events into all enabled features
  */
+@SuppressWarnings("UnstableApiUsage")
 public class VelocityEventListener extends EventListener<Player> {
 
     @Subscribe
-    public void onQuit(DisconnectEvent e) {
+    public void onQuit(@NotNull DisconnectEvent e) {
         quit(e.getPlayer().getUniqueId());
     }
 
     @Subscribe
-    @SuppressWarnings("UnstableApiUsage")
-    public void onConnect(ServerPostConnectEvent e) {
-        serverChange(e.getPlayer(), e.getPlayer().getUniqueId(), e.getPlayer().getCurrentServer()
-                .map(s -> s.getServerInfo().getName()).orElse("null"));
+    public void onConnect(@NotNull ServerPostConnectEvent e) {
+        serverChange(
+                e.getPlayer(), e.getPlayer().getUniqueId(),
+                e.getPlayer().getCurrentServer().map(s -> s.getServerInfo().getName()).orElse("null")
+        );
     }
 
     @Subscribe
-    public void onCommand(CommandExecuteEvent e) {
-        if (TAB.getInstance().isPluginDisabled()) return;
-        // Imagine not allowing to cancel a command while it works completely fine on BungeeCord and Bukkit and everywhere else
+    public void onCommand(@NotNull CommandExecuteEvent e) {
         BossBarManagerImpl bossBarManager = TAB.getInstance().getFeatureManager().getFeature(TabConstants.Feature.BOSS_BAR);
         if (bossBarManager != null && bossBarManager.getToggleCommand().substring(1).equals(e.getCommand())) {
             e.setResult(CommandResult.command(TabConstants.COMMAND_PROXY + " bossbar"));
@@ -46,16 +47,17 @@ public class VelocityEventListener extends EventListener<Player> {
     }
 
     @Subscribe
-    public void onPluginMessageEvent(PluginMessageEvent event) {
-        if (!event.getIdentifier().getId().equalsIgnoreCase(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME)) return;
-        if (event.getTarget() instanceof Player) {
-            event.setResult(PluginMessageEvent.ForwardResult.handled());
-            pluginMessage(((Player) event.getTarget()).getUniqueId(), event.getData());
+    public void onPluginMessageEvent(@NotNull PluginMessageEvent e) {
+        if (!e.getIdentifier().getId().equals(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME)) return;
+        if (e.getTarget() instanceof Player) {
+            e.setResult(PluginMessageEvent.ForwardResult.handled());
+            pluginMessage(((Player) e.getTarget()).getUniqueId(), e.getData());
         }
     }
 
     @Override
-    public TabPlayer createPlayer(Player player) {
-        return new VelocityTabPlayer(player);
+    @NotNull
+    public TabPlayer createPlayer(@NotNull Player player) {
+        return new VelocityTabPlayer((VelocityPlatform) TAB.getInstance().getPlatform(), player);
     }
 }

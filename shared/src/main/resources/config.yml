@@ -118,8 +118,6 @@ scoreboard:
         - "* &eStaff&7: &f%staffonline%"
         - " "
         - "&6Server Info:"
-        - "* &bTPS&7: %tps%"
-        - "* &bUptime&7: &f%server_uptime%"
         - "* &bMemory&7: &f%memory-used%&7/&4%memory-max%"
         - "%animation:MyAnimation1%"
     scoreboard1:
@@ -175,11 +173,15 @@ layout:
           slots:
             - 44-80
 
+# https://github.com/NEZNAMY/TAB/wiki/Feature-guide:-Ping-Spoof
+ping-spoof:
+  enabled: false
+  value: 0
+
 placeholders:
   date-format: "dd.MM.yyyy"
   time-format: "[HH:mm:ss / h:mm a]"
   time-offset: 0
-  register-tab-expansion: false
 
 # https://github.com/NEZNAMY/TAB/wiki/Feature-guide:-Placeholder-output-replacements
 placeholder-output-replacements:
@@ -263,7 +265,6 @@ global-playerlist:
   display-others-as-spectators: false
   display-vanished-players-as-spectators: true
   isolate-unlisted-servers: false
-  update-latency: false
   spy-servers:
     - spyserver1
     - spyserver2

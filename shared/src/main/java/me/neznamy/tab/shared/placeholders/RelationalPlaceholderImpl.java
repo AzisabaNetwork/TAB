@@ -5,6 +5,7 @@ import java.util.WeakHashMap;
 import java.util.function.BiFunction;
 
 import lombok.NonNull;
+import me.neznamy.tab.shared.features.PlaceholderManagerImpl;
 import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
@@ -58,8 +59,11 @@ public class RelationalPlaceholderImpl extends TabPlaceholder implements Relatio
         String newValue = getReplacements().findReplacement(String.valueOf(output));
         if (!lastValues.computeIfAbsent(viewer, v -> new WeakHashMap<>()).containsKey(target) || !lastValues.get(viewer).get(target).equals(newValue)) {
             lastValues.get(viewer).put(target, newValue);
-            updateParents(viewer);
-            updateParents(target);
+            TAB.getInstance().getCPUManager().runMeasuredTask(TAB.getInstance().getPlaceholderManager().getFeatureName(),
+                    TabConstants.CpuUsageCategory.PLACEHOLDER_REFRESHING, () -> {
+                        updateParents(viewer);
+                        updateParents(target);
+                    });
             return true;
         }
         return false;
@@ -102,7 +106,16 @@ public class RelationalPlaceholderImpl extends TabPlaceholder implements Relatio
 
     @Override
     public void update(@NonNull me.neznamy.tab.api.TabPlayer viewer, @NonNull me.neznamy.tab.api.TabPlayer target) {
-        update((TabPlayer) viewer, (TabPlayer) target);
+        PlaceholderManagerImpl pm = TAB.getInstance().getPlaceholderManager();
+        TAB.getInstance().getCPUManager().runMeasuredTask(pm.getFeatureName(), TabConstants.CpuUsageCategory.PLACEHOLDER_REFRESHING, () -> {
+            if (update((TabPlayer) viewer, (TabPlayer) target)) {
+                for (Refreshable r : pm.getPlaceholderUsage().get(identifier)) {
+                    long startTime = System.nanoTime();
+                    r.refresh((TabPlayer) target, false);
+                    TAB.getInstance().getCPUManager().addTime(r.getFeatureName(), r.getRefreshDisplayName(), System.nanoTime() - startTime);
+                }
+            }
+        });
     }
 
     /**
@@ -116,8 +129,11 @@ public class RelationalPlaceholderImpl extends TabPlaceholder implements Relatio
      * @return  last known value for entered player duo
      */
     public String getLastValue(@NonNull TabPlayer viewer, @NonNull TabPlayer target) {
-        if (!lastValues.computeIfAbsent(viewer, v -> new WeakHashMap<>()).containsKey(target)) update(viewer, target);
-        return setPlaceholders(replacements.findReplacement(EnumChatFormat.color(lastValues.computeIfAbsent(viewer, v -> new WeakHashMap<>()).get(target))), target);
+        if (!lastValues.computeIfAbsent(viewer, v -> new WeakHashMap<>()).containsKey(target)) {
+            lastValues.get(viewer).put(target, getReplacements().findReplacement(identifier));
+            update(viewer, target);
+        }
+        return setPlaceholders(EnumChatFormat.color(lastValues.computeIfAbsent(viewer, v -> new WeakHashMap<>()).get(target)), target);
     }
 
     @Override
@@ -135,20 +151,26 @@ public class RelationalPlaceholderImpl extends TabPlaceholder implements Relatio
     /**
      * Calls the placeholder request function and returns the output.
      * If the placeholder threw an exception, it is logged in {@code placeholder-errors.log}
-     * file and "ERROR" is returned.
+     * file and {@link #ERROR_VALUE} is returned.
      *
      * @param   viewer
      *          player looking at output of the placeholder
      * @param   target
      *          player the placeholder is displayed on
-     * @return  value placeholder returned or "ERROR" if it threw an error
+     * @return  value placeholder returned or {@link #ERROR_VALUE} if it threw an error
      */
     public @Nullable Object request(@NonNull TabPlayer viewer, @NonNull TabPlayer target) {
+        long time = System.currentTimeMillis();
         try {
             return function.apply(viewer, target);
         } catch (Throwable t) {
             TAB.getInstance().getErrorManager().placeholderError("Relational placeholder " + identifier + " generated an error when setting for players " + viewer.getName() + " and " + target.getName(), t);
-            return "ERROR";
+            return ERROR_VALUE;
+        } finally {
+            long timeDiff = System.currentTimeMillis() - time;
+            if (timeDiff > TabConstants.Placeholder.RETURN_TIME_WARN_THRESHOLD) {
+                TAB.getInstance().debug("Placeholder " + identifier + " took " + timeDiff + "ms to return value for " + viewer.getName() + " and " + target.getName());
+            }
         }
     }
 }

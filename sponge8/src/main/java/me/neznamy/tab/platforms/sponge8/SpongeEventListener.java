@@ -1,7 +1,9 @@
 package me.neznamy.tab.platforms.sponge8;
 
+import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.platform.EventListener;
 import me.neznamy.tab.shared.platform.TabPlayer;
+import org.jetbrains.annotations.NotNull;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.server.ServerPlayer;
 import org.spongepowered.api.event.Listener;
@@ -24,11 +26,6 @@ public class SpongeEventListener extends EventListener<ServerPlayer> {
         join(event.player());
     }
 
-    @Listener(order = Order.PRE)
-    public void onRespawn(RespawnPlayerEvent.Recreate event) {
-        replacePlayer(event.recreatedPlayer().uniqueId(), event.recreatedPlayer());
-    }
-
     @Listener
     public void onWorldChange(ChangeEntityWorldEvent event, @First Player player) {
         worldChange(event.entity().uniqueId(), event.destinationWorld().toString());
@@ -39,8 +36,14 @@ public class SpongeEventListener extends EventListener<ServerPlayer> {
         if (command(player.uniqueId(), event.command())) event.setCancelled(true);
     }
 
+    @Listener(order = Order.PRE)
+    public void onRespawn(RespawnPlayerEvent.Recreate event) {
+        replacePlayer(event.recreatedPlayer().uniqueId(), event.recreatedPlayer());
+    }
+
     @Override
-    public TabPlayer createPlayer(ServerPlayer player) {
-        return new SpongeTabPlayer(player);
+    @NotNull
+    public TabPlayer createPlayer(@NotNull ServerPlayer player) {
+        return new SpongeTabPlayer((SpongePlatform) TAB.getInstance().getPlatform(), player);
     }
 }

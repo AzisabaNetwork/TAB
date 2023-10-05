@@ -1,16 +1,12 @@
 package me.neznamy.tab.shared.command;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
@@ -101,7 +97,7 @@ public abstract class SubCommand {
         if (sender != null) {
             sender.sendMessage(message, true);
         } else {
-            TAB.getInstance().sendConsoleMessage(message, true);
+            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText(message));
         }
     }
 
@@ -118,7 +114,7 @@ public abstract class SubCommand {
         if (sender != null) {
             sender.sendMessage(message, false);
         } else {
-            TAB.getInstance().sendConsoleMessage(message, false);
+            TAB.getInstance().getPlatform().logInfo(new IChatBaseComponent(message));
         }
     }
 
@@ -168,7 +164,7 @@ public abstract class SubCommand {
         if (subcommand != null) {
             return subcommand.complete(sender, Arrays.copyOfRange(arguments, 1, arguments.length));
         }
-        return new ArrayList<>();
+        return Collections.emptyList();
     }
 
     public @NotNull MessageFile getMessages() {

@@ -1,5 +1,7 @@
 package me.neznamy.tab.platforms.bukkit;
 
+import me.neznamy.tab.platforms.bukkit.platform.BukkitPlatform;
+import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.platform.EventListener;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import org.bukkit.entity.Player;
@@ -10,6 +12,7 @@ import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * The core for bukkit forwarding events into all enabled features
@@ -37,7 +40,8 @@ public class BukkitEventListener extends EventListener<Player> implements Listen
     }
 
     @Override
-    public TabPlayer createPlayer(Player player) {
-        return new BukkitTabPlayer(player);
+    @NotNull
+    public TabPlayer createPlayer(@NotNull Player player) {
+        return new BukkitTabPlayer((BukkitPlatform) TAB.getInstance().getPlatform(), player);
     }
 }

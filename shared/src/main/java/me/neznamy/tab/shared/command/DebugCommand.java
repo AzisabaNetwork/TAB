@@ -1,6 +1,7 @@
 package me.neznamy.tab.shared.command;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -67,6 +68,11 @@ public class DebugCommand extends SubCommand {
         sendMessage(sender, "&6Storage type: &b" + (tab.getConfiguration().getGroups() instanceof ConfigurationFile ? "File" : "MySQL"));
         sendMessage(sender, separator);
         if (analyzed == null) return;
+        if (!analyzed.isLoaded()) {
+            sendMessage(sender, "&cThe specified player is not loaded. This is either because player failed to load" +
+                    " due to an error (see TAB's folder for errors.log file) or the plugin is overloaded (see /tab cpu).");
+            return;
+        }
         sendMessage(sender, "&ePlayer: &a" + analyzed.getName());
         if (analyzed instanceof ProxyTabPlayer) {
             sendMessage(sender, "&eBridge connection: " + (((ProxyTabPlayer)analyzed).isBridgeConnected() ? "&aConnected" : "&cNot connected"));
@@ -185,7 +191,7 @@ public class DebugCommand extends SubCommand {
      * @return  list of extra properties
      */
     public @NotNull List<String> getExtraLines() {
-        if (!TAB.getInstance().getFeatureManager().isFeatureEnabled(TabConstants.Feature.UNLIMITED_NAME_TAGS)) return new ArrayList<>();
+        if (!TAB.getInstance().getFeatureManager().isFeatureEnabled(TabConstants.Feature.UNLIMITED_NAME_TAGS)) return Collections.emptyList();
         List<String> lines = new ArrayList<>(TAB.getInstance().getConfiguration().getConfig().getStringList("scoreboard-teams.unlimited-nametag-mode.dynamic-lines"));
         Map<String, Number> staticLines = TAB.getInstance().getConfiguration().getConfig().getConfigurationSection("scoreboard-teams.unlimited-nametag-mode.static-lines");
         lines.addAll(staticLines.keySet());

@@ -2,11 +2,11 @@ package me.neznamy.tab.platforms.bungeecord;
 
 import de.myzelyam.api.vanish.BungeeVanishAPI;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.platforms.bungeecord.tablist.BungeeTabList1193;
 import me.neznamy.tab.platforms.bungeecord.tablist.BungeeTabList17;
 import me.neznamy.tab.platforms.bungeecord.tablist.BungeeTabList18;
-import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.platform.Scoreboard;
@@ -14,58 +14,56 @@ import me.neznamy.tab.shared.platform.TabList;
 import me.neznamy.tab.shared.platform.bossbar.BossBar;
 import me.neznamy.tab.shared.proxy.ProxyTabPlayer;
 import me.neznamy.tab.shared.util.ReflectionUtils;
+import net.md_5.bungee.UserConnection;
 import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.chat.ComponentSerializer;
 import net.md_5.bungee.connection.InitialHandler;
 import net.md_5.bungee.connection.LoginResult;
 import net.md_5.bungee.protocol.DefinedPacket;
 import net.md_5.bungee.protocol.Property;
-import net.md_5.bungee.protocol.Protocol;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.lang.reflect.Method;
 
 /**
  * TabPlayer implementation for BungeeCord
  */
+@Getter
 public class BungeeTabPlayer extends ProxyTabPlayer {
-
-    /** Inaccessible bungee internals */
-    private static @Nullable Object directionData;
-    private static @Nullable Method getId;
 
     /** Flag tracking plugin presence */
     private static final boolean premiumVanish = ProxyServer.getInstance().getPluginManager().getPlugin("PremiumVanish") != null;
 
-    static {
-        try {
-            directionData = ReflectionUtils.setAccessible(Protocol.class.getDeclaredField("TO_CLIENT")).get(Protocol.GAME);
-            getId = ReflectionUtils.setAccessible(directionData.getClass().getDeclaredMethod("getId", Class.class, int.class));
-        } catch (ReflectiveOperationException e) {
-            TAB.getInstance().getErrorManager().criticalError("Failed to initialize bungee internal fields", e);
-        }
-    }
+    /** Flag tracking version of bungeecord with packet queue due to configuration phase */
+    private static final boolean packetQueue = ReflectionUtils.methodExists(UserConnection.class, "sendPacketQueued", DefinedPacket.class);
 
     /** Player's scoreboard */
-    @Getter private final @NotNull Scoreboard<BungeeTabPlayer> scoreboard = new BungeeScoreboard(this);
+    @NotNull
+    private final Scoreboard<BungeeTabPlayer> scoreboard = new BungeeScoreboard(this);
 
     /** Player's tab list based on version */
-    private final @NotNull TabList tabList1_7 = new BungeeTabList17(this);
-    private final @NotNull TabList tabList1_8 = new BungeeTabList18(this);
-    private final @NotNull TabList tabList1_19_3 = new BungeeTabList1193(this);
+    @NotNull
+    private final TabList tabList1_7 = new BungeeTabList17(this);
 
-    @Getter private final @NotNull BossBar bossBar = new BungeeBossBar(this);
+    @NotNull
+    private final TabList tabList1_8 = new BungeeTabList18(this);
+
+    @NotNull
+    private final TabList tabList1_19_3 = new BungeeTabList1193(this);
+
+    /** Player's boss bar view */
+    @NotNull
+    private final BossBar bossBar = new BungeeBossBar(this);
 
     /**
      * Constructs new instance for given player
      *
+     * @param   platform
+     *          Server platform
      * @param   p
      *          BungeeCord player
      */
-    public BungeeTabPlayer(@NotNull ProxiedPlayer p) {
-        super(p, p.getUniqueId(), p.getName(), p.getServer() != null ? p.getServer().getInfo().getName() : "-", -1);
+    public BungeeTabPlayer(@NotNull BungeePlatform platform, @NotNull ProxiedPlayer p) {
+        super(platform, p, p.getUniqueId(), p.getName(), p.getServer() != null ? p.getServer().getInfo().getName() : "-", -1);
     }
 
     @Override
@@ -78,45 +76,44 @@ public class BungeeTabPlayer extends ProxyTabPlayer {
         return getPlayer().getPing();
     }
 
-    public void sendPacket(@NotNull Object nmsPacket) {
-        getPlayer().unsafe().sendPacket((DefinedPacket) nmsPacket);
-    }
-
     @Override
     public void sendMessage(@NotNull IChatBaseComponent message) {
-        getPlayer().sendMessage(ComponentSerializer.parse(message.toString(getVersion())));
+        getPlayer().sendMessage(getPlatform().toComponent(message, getVersion()));
     }
 
     @Override
-    public @Nullable TabList.Skin getSkin() {
+    @Nullable
+    public TabList.Skin getSkin() {
         LoginResult loginResult = ((InitialHandler)getPlayer().getPendingConnection()).getLoginProfile();
         if (loginResult == null) return null;
         Property[] properties = loginResult.getProperties();
-        if (properties == null || properties.length == 0) return null;
+        if (properties == null || properties.length == 0) return null; //Offline mode
         return new TabList.Skin(properties[0].getValue(), properties[0].getSignature());
     }
 
     @Override
-    public @NotNull ProxiedPlayer getPlayer() {
+    @NotNull
+    public ProxiedPlayer getPlayer() {
         return (ProxiedPlayer) player;
     }
 
-    /**
-     * Returns packet ID for this player of provided packet class
-     *
-     * @param   clazz
-     *          packet class
-     * @return  packet ID
-     */
-    public int getPacketId(@NotNull Class<? extends DefinedPacket> clazz) {
-        if (getId == null) return -1;
-        try {
-            return (int) getId.invoke(directionData, clazz, getPlayer().getPendingConnection().getVersion());
-        } catch (ReflectiveOperationException e) {
-            TAB.getInstance().getErrorManager().printError("Failed to get packet id for packet " + clazz +
-                    " with client version " + getPlayer().getPendingConnection().getVersion(), e);
-            return -1;
+    @Override
+    public boolean isOnline() {
+        return getPlayer().isConnected();
+    }
+
+    @Override
+    public BungeePlatform getPlatform() {
+        return (BungeePlatform) platform;
+    }
+
+    @Override
+    public void sendPluginMessage(byte[] message) {
+        if (getPlayer().getServer() == null) {
+            errorNoServer(message);
+            return;
         }
+        getPlayer().getServer().sendData(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME, message);
     }
 
     /**
@@ -127,35 +124,44 @@ public class BungeeTabPlayer extends ProxyTabPlayer {
      * @return  Player's current protocol version
      */
     @Override
-    public @NotNull ProtocolVersion getVersion() {
+    @NotNull
+    public ProtocolVersion getVersion() {
         return ProtocolVersion.fromNetworkId(getPlayer().getPendingConnection().getVersion());
     }
 
     @Override
     public boolean isVanished() {
-        //noinspection ConstantConditions
-        if (premiumVanish && BungeeVanishAPI.isInvisible(getPlayer())) return true;
+        try {
+            //noinspection ConstantConditions
+            if (premiumVanish && BungeeVanishAPI.isInvisible(getPlayer())) return true;
+        } catch (IllegalStateException ignored) {
+            // PV Bug: PremiumVanish must be enabled to use its API
+        }
         return super.isVanished();
     }
 
     @Override
-    public boolean isOnline() {
-        return getPlayer().isConnected();
+    @NotNull
+    public TabList getTabList() {
+        int version = getPlayer().getPendingConnection().getVersion();
+        if (version >= ProtocolVersion.V1_19_3.getNetworkId()) return tabList1_19_3;
+        if (version >= ProtocolVersion.V1_8.getNetworkId()) return tabList1_8;
+        return tabList1_7;
     }
 
-    @Override
-    public @NotNull TabList getTabList() {
-        return getVersion().getNetworkId() >= ProtocolVersion.V1_19_3.getNetworkId() ?
-                tabList1_19_3 : getVersion().getMinorVersion() >= 8 ? tabList1_8 : tabList1_7;
-    }
-
-    @Override
-    public void sendPluginMessage(byte[] message) {
-        if (getPlayer().getServer() == null) {
-            TAB.getInstance().getErrorManager().printError("Skipped plugin message send to " + getName() + ", because player is not" +
-                    "connected to any server (message=" + new String(message) + ")");
-            return;
+    /**
+     * Sends packet to the player. If BungeeCord supports 1.20.2+, new packet queue method is used
+     * to avoid error when sending packet in configuration phase.
+     *
+     * @param   packet
+     *          Packet to send
+     */
+    @SneakyThrows
+    public void sendPacket(@NotNull DefinedPacket packet) {
+        if (packetQueue) {
+            UserConnection.class.getDeclaredMethod("sendPacketQueued", DefinedPacket.class).invoke(player, packet);
+        } else {
+            getPlayer().unsafe().sendPacket(packet);
         }
-        getPlayer().getServer().sendData(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME, message);
     }
 }

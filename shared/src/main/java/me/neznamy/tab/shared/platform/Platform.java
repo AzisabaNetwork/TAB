@@ -1,6 +1,7 @@
 package me.neznamy.tab.shared.platform;
 
 import me.neznamy.tab.shared.GroupManager;
+import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.features.bossbar.BossBarManagerImpl;
 import me.neznamy.tab.shared.features.injection.PipelineInjector;
@@ -11,11 +12,13 @@ import me.neznamy.tab.shared.placeholders.expansion.TabExpansion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
+
 /**
  * An interface with methods that are called in universal code,
  * but require platform-specific API calls
  */
-public interface Platform {
+public interface Platform<T> {
 
     /**
      * Detects permission plugin and returns its representing object
@@ -95,7 +98,16 @@ public interface Platform {
      * @param   message
      *          Message to send
      */
-    void sendConsoleMessage(@NotNull IChatBaseComponent message);
+    void logInfo(@NotNull IChatBaseComponent message);
+
+    /**
+     * Sends a red console message with TAB's prefix using logger with warn type if available,
+     * otherwise platform's method for sending console message.
+     *
+     * @param   message
+     *          Message to send
+     */
+    void logWarn(@NotNull IChatBaseComponent message);
 
     /**
      * Returns information about server version, which is displayed in debug command
@@ -103,4 +115,44 @@ public interface Platform {
      * @return  Server version information
      */
     String getServerVersionInfo();
+
+    /**
+     * Registers event listener for platform's events
+     */
+    void registerListener();
+
+    /**
+     * Registers plugin's command
+     */
+    void registerCommand();
+
+    /**
+     * Starts metrics
+     */
+    void startMetrics();
+
+    /**
+     * Returns server's version
+     *
+     * @return  server's version
+     */
+    ProtocolVersion getServerVersion();
+
+    /**
+     * Returns plugin's data folder for configuration files
+     *
+     * @return  plugin's data folder
+     */
+    File getDataFolder();
+
+    /**
+     * Converts internal component class to platform's component class
+     *
+     * @param   component
+     *          Component to convert
+     * @param   version
+     *          Game version to convert component for
+     * @return  Converted component
+     */
+    T toComponent(@NotNull IChatBaseComponent component, @NotNull ProtocolVersion version);
 }

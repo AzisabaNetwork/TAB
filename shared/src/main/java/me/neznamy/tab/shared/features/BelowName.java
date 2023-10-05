@@ -48,7 +48,11 @@ public class BelowName extends TabFeature implements JoinListener, Loadable, UnL
                 disableChecker.addDisabledPlayer(loaded);
                 continue;
             }
-            loaded.getScoreboard().registerObjective(OBJECTIVE_NAME, loaded.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(), false);
+            loaded.getScoreboard().registerObjective(
+                    OBJECTIVE_NAME,
+                    loaded.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(),
+                    Scoreboard.HealthDisplay.INTEGER
+            );
             loaded.getScoreboard().setDisplaySlot(Scoreboard.DisplaySlot.BELOW_NAME, OBJECTIVE_NAME);
         }
         Map<TabPlayer, Integer> values = new HashMap<>();
@@ -59,7 +63,7 @@ public class BelowName extends TabFeature implements JoinListener, Loadable, UnL
         for (TabPlayer viewer : TAB.getInstance().getOnlinePlayers()) {
             if (disableChecker.isDisabledPlayer(viewer)) continue;
             for (Map.Entry<TabPlayer, Integer> entry : values.entrySet()) {
-                viewer.getScoreboard().setScore(OBJECTIVE_NAME, entry.getKey().getName(), entry.getValue());
+                viewer.getScoreboard().setScore(OBJECTIVE_NAME, entry.getKey().getNickname(), entry.getValue());
             }
         }
     }
@@ -80,12 +84,16 @@ public class BelowName extends TabFeature implements JoinListener, Loadable, UnL
             disableChecker.addDisabledPlayer(connectedPlayer);
             return;
         }
-        connectedPlayer.getScoreboard().registerObjective(OBJECTIVE_NAME, connectedPlayer.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(), false);
+        connectedPlayer.getScoreboard().registerObjective(
+                OBJECTIVE_NAME,
+                connectedPlayer.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(),
+                Scoreboard.HealthDisplay.INTEGER
+        );
         connectedPlayer.getScoreboard().setDisplaySlot(Scoreboard.DisplaySlot.BELOW_NAME, OBJECTIVE_NAME);
         int number = getValue(connectedPlayer);
         for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
-            if (!disableChecker.isDisabledPlayer(all)) all.getScoreboard().setScore(OBJECTIVE_NAME, connectedPlayer.getName(), number);
-            connectedPlayer.getScoreboard().setScore(OBJECTIVE_NAME, all.getName(), getValue(all));
+            if (!disableChecker.isDisabledPlayer(all)) all.getScoreboard().setScore(OBJECTIVE_NAME, connectedPlayer.getNickname(), number);
+            connectedPlayer.getScoreboard().setScore(OBJECTIVE_NAME, all.getNickname(), getValue(all));
         }
         if (redis != null) redis.updateBelowName(connectedPlayer, number);
     }
@@ -93,10 +101,14 @@ public class BelowName extends TabFeature implements JoinListener, Loadable, UnL
     @Override
     public void onServerChange(@NotNull TabPlayer player, @NotNull String from, @NotNull String to) {
         if (disableChecker.isDisabledPlayer(player)) return;
-        player.getScoreboard().registerObjective(OBJECTIVE_NAME, player.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(), false);
+        player.getScoreboard().registerObjective(
+                OBJECTIVE_NAME,
+                player.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(),
+                Scoreboard.HealthDisplay.INTEGER
+        );
         player.getScoreboard().setDisplaySlot(Scoreboard.DisplaySlot.BELOW_NAME, OBJECTIVE_NAME);
         for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
-            player.getScoreboard().setScore(OBJECTIVE_NAME, all.getName(), getValue(all));
+            player.getScoreboard().setScore(OBJECTIVE_NAME, all.getNickname(), getValue(all));
         }
     }
 
@@ -117,7 +129,7 @@ public class BelowName extends TabFeature implements JoinListener, Loadable, UnL
         if (disableChecker.isDisabledPlayer(refreshed)) return;
         int number = getValue(refreshed);
         for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
-            all.getScoreboard().setScore(OBJECTIVE_NAME, refreshed.getName(), number);
+            all.getScoreboard().setScore(OBJECTIVE_NAME, refreshed.getNickname(), number);
         }
         if (redis != null) redis.updateBelowName(refreshed, number);
     }
@@ -132,7 +144,11 @@ public class BelowName extends TabFeature implements JoinListener, Loadable, UnL
         @Override
         public void refresh(@NotNull TabPlayer refreshed, boolean force) {
             if (feature.disableChecker.isDisabledPlayer(refreshed)) return;
-            refreshed.getScoreboard().updateObjective(OBJECTIVE_NAME, refreshed.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(), false);
+            refreshed.getScoreboard().updateObjective(
+                    OBJECTIVE_NAME,
+                    refreshed.getProperty(TabConstants.Property.BELOWNAME_TEXT).updateAndGet(),
+                    Scoreboard.HealthDisplay.INTEGER
+            );
         }
     }
 }

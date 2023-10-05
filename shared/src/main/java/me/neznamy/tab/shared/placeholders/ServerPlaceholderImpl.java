@@ -5,6 +5,7 @@ import java.util.function.Supplier;
 
 import lombok.Getter;
 import lombok.NonNull;
+import me.neznamy.tab.shared.features.PlaceholderManagerImpl;
 import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.api.placeholder.ServerPlaceholder;
@@ -58,10 +59,13 @@ public class ServerPlaceholderImpl extends TabPlaceholder implements ServerPlace
         }
         if (!"ERROR".equals(newValue) && !identifier.equals(newValue) && (lastValue == null || !lastValue.equals(newValue))) {
             lastValue = newValue;
-            for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
-                updateParents(player);
-                TAB.getInstance().getPlaceholderManager().getTabExpansion().setPlaceholderValue(player, identifier, newValue);
-            }
+            TAB.getInstance().getCPUManager().runMeasuredTask(TAB.getInstance().getPlaceholderManager().getFeatureName(),
+                    TabConstants.CpuUsageCategory.PLACEHOLDER_REFRESHING, () -> {
+                        for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
+                            updateParents(player);
+                            TAB.getInstance().getPlaceholderManager().getTabExpansion().setPlaceholderValue(player, identifier, newValue);
+                        }
+                    });
             return true;
         }
         return false;
@@ -101,7 +105,18 @@ public class ServerPlaceholderImpl extends TabPlaceholder implements ServerPlace
 
     @Override
     public void update() {
-        update0();
+        PlaceholderManagerImpl pm = TAB.getInstance().getPlaceholderManager();
+        TAB.getInstance().getCPUManager().runMeasuredTask(pm.getFeatureName(), TabConstants.CpuUsageCategory.PLACEHOLDER_REFRESHING, () -> {
+            if (update0()) {
+                for (Refreshable r : pm.getPlaceholderUsage().get(identifier)) {
+                    for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
+                        long startTime = System.nanoTime();
+                        r.refresh(all, false);
+                        TAB.getInstance().getCPUManager().addTime(r.getFeatureName(), r.getRefreshDisplayName(), System.nanoTime() - startTime);
+                    }
+                 }
+            }
+        });
     }
 
     @Override
@@ -117,16 +132,22 @@ public class ServerPlaceholderImpl extends TabPlaceholder implements ServerPlace
     /**
      * Calls the placeholder request function and returns the output.
      * If the placeholder threw an exception, it is logged in {@code placeholder-errors.log}
-     * file and "ERROR" is returned.
+     * file and {@link #ERROR_VALUE} is returned.
      *
-     * @return  value placeholder returned or "ERROR" if it threw an error
+     * @return  value placeholder returned or {@link #ERROR_VALUE} if it threw an error
      */
     public @Nullable Object request() {
+        long time = System.currentTimeMillis();
         try {
             return supplier.get();
         } catch (Throwable t) {
             TAB.getInstance().getErrorManager().placeholderError("Server placeholder " + identifier + " generated an error", t);
-            return "ERROR";
+            return ERROR_VALUE;
+        } finally {
+            long timeDiff = System.currentTimeMillis() - time;
+            if (timeDiff > TabConstants.Placeholder.RETURN_TIME_WARN_THRESHOLD) {
+                TAB.getInstance().debug("Placeholder " + identifier + " took " + timeDiff + "ms to return value");
+            }
         }
     }
 }

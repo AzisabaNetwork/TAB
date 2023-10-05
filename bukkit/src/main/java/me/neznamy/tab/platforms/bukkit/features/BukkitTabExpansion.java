@@ -11,7 +11,9 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -22,11 +24,36 @@ import java.util.WeakHashMap;
 public class BukkitTabExpansion extends PlaceholderExpansion implements TabExpansion {
 
     /** Map holding all values for all players for easy and high-performance access */
-    private final WeakHashMap<Player, Map<String, String>> values = new WeakHashMap<>();
+    @NotNull
+    private final WeakHashMap<TabPlayer, Map<String, String>> values = new WeakHashMap<>();
 
-    private final String author = TabConstants.PLUGIN_AUTHOR;
-    private final String identifier = TabConstants.PLUGIN_ID;
-    private final String version = TabConstants.PLUGIN_VERSION;
+    /** List of all placeholders offered by the plugin for command suggestions */
+    @NotNull
+    private final List<String> placeholders = Arrays.asList(
+            "%tab_tabprefix%",
+            "%tab_tabsuffix%",
+            "%tab_tagprefix%",
+            "%tab_tagsuffix%",
+            "%tab_customtabname%",
+            "%tab_customtagname%",
+            "%tab_belowname%",
+            "%tab_abovename%",
+            "%tab_tabprefix_raw%",
+            "%tab_tabsuffix_raw%",
+            "%tab_tagprefix_raw%",
+            "%tab_tagsuffix_raw%",
+            "%tab_customtabname_raw%",
+            "%tab_customtagname_raw%",
+            "%tab_belowname_raw%",
+            "%tab_abovename_raw%",
+            "%tab_scoreboard_name%",
+            "%tab_scoreboard_visible%",
+            "%tab_bossbar_visible%",
+            "%tab_nametag_preview%",
+            "%tab_nametag_visibility%",
+            "%tab_replace_<placeholder>%",
+            "%tab_placeholder_<placeholder>%"
+    );
 
     @Override
     public boolean persist() {
@@ -34,6 +61,31 @@ public class BukkitTabExpansion extends PlaceholderExpansion implements TabExpan
     }
 
     @Override
+    @NotNull
+    public String getAuthor() {
+        return TabConstants.PLUGIN_AUTHOR;
+    }
+
+    @Override
+    @NotNull
+    public String getIdentifier() {
+        return TabConstants.PLUGIN_ID;
+    }
+
+    @Override
+    @NotNull
+    public String getVersion() {
+        return TabConstants.PLUGIN_VERSION;
+    }
+
+    @Override
+    @NotNull
+    public List<String> getPlaceholders() {
+        return placeholders;
+    }
+
+    @Override
+    @Nullable
     public String onPlaceholderRequest(@Nullable Player player, @NotNull String identifier) {
         if (identifier.startsWith("replace_")) {
             String text = "%" + identifier.substring(8) + "%";
@@ -50,11 +102,14 @@ public class BukkitTabExpansion extends PlaceholderExpansion implements TabExpan
         if (identifier.startsWith("placeholder_")) {
             TAB.getInstance().getPlaceholderManager().addUsedPlaceholder("%" + identifier.substring(12) + "%", TAB.getInstance().getPlaceholderManager());
         }
-        return values.get(player).get(identifier);
+        if (player == null) return "<Player cannot be null>";
+        TabPlayer p = TAB.getInstance().getPlayer(player.getUniqueId());
+        if (p == null || !p.isLoaded()) return "<Player is not loaded>";
+        return values.get(p).get(identifier);
     }
 
     @Override
     public void setValue(@NotNull TabPlayer player, @NotNull String key, @NotNull String value) {
-        values.computeIfAbsent((Player) player.getPlayer(), p -> new HashMap<>()).put(key, value);
+        values.computeIfAbsent(player, p -> new HashMap<>()).put(key, value);
     }
 }

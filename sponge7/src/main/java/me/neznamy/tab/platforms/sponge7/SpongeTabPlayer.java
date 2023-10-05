@@ -1,13 +1,15 @@
 package me.neznamy.tab.platforms.sponge7;
 
 import lombok.Getter;
+import me.neznamy.tab.shared.backend.BackendTabPlayer;
+import me.neznamy.tab.shared.backend.entityview.DummyEntityView;
+import me.neznamy.tab.shared.backend.entityview.EntityView;
 import me.neznamy.tab.shared.platform.bossbar.BossBar;
 import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.platform.TabList;
-import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.platform.Scoreboard;
-import me.neznamy.tab.shared.TAB;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.spongepowered.api.data.key.Keys;
 import org.spongepowered.api.data.manipulator.mutable.PotionEffectData;
 import org.spongepowered.api.effect.potion.PotionEffectTypes;
@@ -15,19 +17,27 @@ import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.gamemode.GameMode;
 import org.spongepowered.api.entity.living.player.gamemode.GameModes;
 import org.spongepowered.api.profile.property.ProfileProperty;
+import org.spongepowered.api.text.Text;
 
 import java.util.Collection;
 
 @Getter
-public final class SpongeTabPlayer extends TabPlayer {
+public class SpongeTabPlayer extends BackendTabPlayer {
 
+    @NotNull
     private final Scoreboard<SpongeTabPlayer> scoreboard = new SpongeScoreboard(this);
+
+    @NotNull
     private final TabList tabList = new SpongeTabList(this);
+
+    @NotNull
     private final BossBar bossBar = new SpongeBossBar(this);
 
-    public SpongeTabPlayer(final Player player) {
-        super(player, player.getUniqueId(), player.getName(), TAB.getInstance().getConfiguration().getServerName(),
-                player.getWorld().getName(), TAB.getInstance().getServerVersion().getNetworkId(), true);
+    @NotNull
+    private final EntityView entityView = new DummyEntityView();
+
+    public SpongeTabPlayer(@NotNull SpongePlatform platform, @NotNull Player player) {
+        super(platform, player, player.getUniqueId(), player.getName(), player.getWorld().getName());
     }
 
     @Override
@@ -42,12 +52,12 @@ public final class SpongeTabPlayer extends TabPlayer {
 
     @Override
     public void sendMessage(@NotNull IChatBaseComponent message) {
-        getPlayer().sendMessage(Sponge7TAB.getTextCache().get(message, getVersion()));
+        getPlayer().sendMessage(Text.of(message.toLegacyText()));
     }
 
     @Override
     public boolean hasInvisibilityPotion() {
-        final PotionEffectData potionEffects = getPlayer().get(PotionEffectData.class).orElse(null);
+        PotionEffectData potionEffects = getPlayer().get(PotionEffectData.class).orElse(null);
         if (potionEffects == null) return false;
         return potionEffects.asList().stream().anyMatch(effect -> effect.getType().equals(PotionEffectTypes.INVISIBILITY));
     }
@@ -58,15 +68,17 @@ public final class SpongeTabPlayer extends TabPlayer {
     }
 
     @Override
+    @Nullable
     public TabList.Skin getSkin() {
-        final Collection<ProfileProperty> properties = getPlayer().getProfile().getPropertyMap().get(TabList.TEXTURES_PROPERTY);
-        if (properties.isEmpty()) return null; //offline mode
-        final ProfileProperty property = properties.iterator().next();
+        Collection<ProfileProperty> properties = getPlayer().getProfile().getPropertyMap().get(TabList.TEXTURES_PROPERTY);
+        if (properties.isEmpty()) return null; // Offline mode
+        ProfileProperty property = properties.iterator().next();
         return new TabList.Skin(property.getValue(), property.getSignature().orElse(null));
     }
 
     @Override
-    public @NotNull Player getPlayer() {
+    @NotNull
+    public Player getPlayer() {
         return (Player) player;
     }
 
@@ -76,16 +88,32 @@ public final class SpongeTabPlayer extends TabPlayer {
     }
 
     @Override
+    public SpongePlatform getPlatform() {
+        return (SpongePlatform) platform;
+    }
+
+    @Override
     public boolean isVanished() {
         return getPlayer().get(Keys.VANISH).orElse(false);
     }
 
     @Override
     public int getGamemode() {
-        final GameMode gameMode = getPlayer().getGameModeData().type().get();
+        GameMode gameMode = getPlayer().getGameModeData().type().get();
         if (gameMode.equals(GameModes.CREATIVE)) return 1;
         if (gameMode.equals(GameModes.ADVENTURE)) return 2;
         if (gameMode.equals(GameModes.SPECTATOR)) return 3;
         return 0;
+    }
+
+    @Override
+    public double getHealth() {
+        return getPlayer().health().get();
+    }
+
+    @Override
+    @NotNull
+    public String getDisplayName() {
+        return getPlayer().getDisplayNameData().displayName().get().toPlain();
     }
 }
