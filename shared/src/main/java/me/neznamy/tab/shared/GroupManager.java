@@ -7,7 +7,6 @@ import me.neznamy.tab.shared.platform.TabPlayer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -24,10 +23,10 @@ public class GroupManager extends TabFeature implements Refreshable {
     @NotNull private final Function<TabPlayer, String> groupFunction;
 
     /** If enabled, groups are assigned via permissions instead of permission plugin */
-    private final boolean groupsByPermissions = TAB.getInstance().getConfiguration().getConfig().getBoolean("assign-groups-by-permissions", false);
+    private final boolean groupsByPermissions = config().getBoolean("assign-groups-by-permissions", false);
 
     /** List of group permissions to iterate through if {@link #groupsByPermissions} is {@code true} */
-    private final List<String> primaryGroupFindingList = TAB.getInstance().getConfiguration().getConfig().getStringList("primary-group-finding-list", Arrays.asList("Owner", "Admin", "Helper", "default"));
+    private final List<String> primaryGroupFindingList = config().getStringList("primary-group-finding-list", Arrays.asList("Owner", "Admin", "Helper", "default"));
 
     private final String featureName = "Permission group refreshing";
     private final String refreshDisplayName = "Processing group change";
@@ -45,7 +44,7 @@ public class GroupManager extends TabFeature implements Refreshable {
         this.groupFunction = groupFunction;
         TAB.getInstance().getPlaceholderManager().registerPlayerPlaceholder(TabConstants.Placeholder.GROUP, 1000,
                 p -> detectPermissionGroup((TabPlayer) p));
-        addUsedPlaceholders(Collections.singletonList(TabConstants.Placeholder.GROUP));
+        addUsedPlaceholder(TabConstants.Placeholder.GROUP);
     }
 
     /**
@@ -66,14 +65,16 @@ public class GroupManager extends TabFeature implements Refreshable {
      *          Player to get permission group of
      * @return  Permission group from permission plugin
      */
-    private @NotNull String getByPrimary(@NotNull TabPlayer player) {
+    @NotNull
+    private String getByPrimary(@NotNull TabPlayer player) {
         try {
             String group = groupFunction.apply(player);
-            return group == null ? TabConstants.NO_GROUP : group;
+            if (group != null) return group;
+            TAB.getInstance().getErrorManager().nullGroupReturned(permissionPlugin, player);
         } catch (Exception e) {
-            TAB.getInstance().getErrorManager().printError("Failed to get permission group of " + player.getName() + " using " + permissionPlugin, e);
-            return TabConstants.NO_GROUP;
+            TAB.getInstance().getErrorManager().groupRetrieveException(permissionPlugin, player, e);
         }
+        return TabConstants.NO_GROUP;
     }
 
     /**

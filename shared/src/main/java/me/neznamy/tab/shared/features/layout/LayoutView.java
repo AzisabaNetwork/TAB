@@ -1,8 +1,8 @@
 package me.neznamy.tab.shared.features.layout;
 
 import lombok.Getter;
-import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.TAB;
+import me.neznamy.tab.shared.chat.SimpleComponent;
 import me.neznamy.tab.shared.placeholders.conditions.Condition;
 import me.neznamy.tab.shared.platform.TabList;
 import me.neznamy.tab.shared.platform.TabPlayer;
@@ -31,8 +31,8 @@ public class LayoutView {
         this.manager = manager;
         this.viewer = viewer;
         this.pattern = pattern;
-        this.fixedSlots = pattern.getFixedSlots().values();
-        this.displayCondition = pattern.getCondition();
+        fixedSlots = pattern.getFixedSlots().values();
+        displayCondition = pattern.getCondition();
         for (FixedSlot slot : fixedSlots) {
             emptySlots.remove((Integer) slot.getSlot());
         }
@@ -55,7 +55,7 @@ public class LayoutView {
                     manager.getSkinManager().getDefaultSkin(slot),
                     manager.getEmptySlotPing(),
                     0,
-                    new IChatBaseComponent("")
+                    new SimpleComponent("")
             ));
         }
         tick();
@@ -67,10 +67,8 @@ public class LayoutView {
     }
 
     public void tick() {
-        Stream<TabPlayer> str = manager.getSortedPlayers().keySet().stream();
-        if (!viewer.hasPermission(TabConstants.Permission.SEE_VANISHED)) {
-            str = str.filter(player -> !player.isVanished());
-        }
+        Stream<TabPlayer> str = manager.getSortedPlayers().keySet().stream().filter(
+                player -> TAB.getInstance().getPlatform().canSee(viewer, player));
         List<TabPlayer> players = str.collect(Collectors.toList());
         for (ParentGroup group : groups) {
             group.tick(players);

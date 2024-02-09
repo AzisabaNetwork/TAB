@@ -1,38 +1,60 @@
 package me.neznamy.tab.platforms.fabric;
 
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import me.neznamy.tab.shared.backend.EntityData;
 import me.neznamy.tab.shared.backend.Location;
 import me.neznamy.tab.shared.backend.entityview.EntityView;
-import net.minecraft.network.protocol.game.*;
-import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
+import me.neznamy.tab.shared.util.ReflectionUtils;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundMoveEntityPacket;
+import net.minecraft.network.protocol.game.ClientboundRemoveEntitiesPacket;
+import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
 import net.minecraft.world.entity.decoration.ArmorStand;
-import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.UUID;
 
-public record FabricEntityView(FabricTabPlayer player) implements EntityView {
+/**
+ * EntityView implementation for Fabric using packets.
+ */
+@RequiredArgsConstructor
+public class FabricEntityView implements EntityView {
+
+    /** Player this view belongs to */
+    @NotNull
+    private final FabricTabPlayer player;
 
     @NotNull
-    private static final Entity dummyEntity = new ArmorStand(null, 0, 0, 0);
+    private final ArmorStand dummyEntity;
 
-    @Override
-    public void spawnEntity(int entityId, @NotNull UUID id, @NotNull Object entityType, @NotNull Location location,
-                            @NotNull EntityData data) {
-        player.sendPacket(new ClientboundAddEntityPacket(entityId, id,
-                location.getX(), location.getY(), location.getZ(), 0, 0,
-                (EntityType<?>) entityType, 0, Vec3.ZERO, 0));
-        updateEntityMetadata(entityId, data);
+    /**
+     * Constructs new instance.
+     *
+     * @param   player
+     *          Player this view will belong to
+     */
+    public FabricEntityView(@NotNull FabricTabPlayer player) {
+        this.player = player;
+
+        // Make level not null, because some mods hacking deep into the server code cause NPE
+        dummyEntity = new ArmorStand(FabricMultiVersion.getLevel.apply(player.getPlayer()), 0, 0, 0);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void updateEntityMetadata(int entityId, @NotNull EntityData data) {
-        player.sendPacket(new ClientboundSetEntityDataPacket(entityId, (List<SynchedEntityData.DataValue<?>>) data.build()));
+    @SneakyThrows
+    public void spawnEntity(int entityId, @NotNull UUID id, @NotNull Object entityType, @NotNull Location location,
+                            @NotNull EntityData data) {
+        FabricMultiVersion.sendPackets.accept(player.getPlayer(), Arrays.asList(
+                FabricMultiVersion.spawnEntity.apply(FabricMultiVersion.getLevel.apply(player.getPlayer()), entityId, id, entityType, location),
+                FabricMultiVersion.newEntityMetadata.apply(entityId, data)
+        ));
+    }
 
+    @Override
+    public void updateEntityMetadata(int entityId, @NotNull EntityData data) {
+        player.sendPacket(FabricMultiVersion.newEntityMetadata.apply(entityId, data));
     }
 
     @Override
@@ -43,8 +65,9 @@ public record FabricEntityView(FabricTabPlayer player) implements EntityView {
     }
 
     @Override
+    @SneakyThrows
     public void destroyEntities(int... entities) {
-        player.sendPacket(new ClientboundRemoveEntitiesPacket(entities));
+        FabricMultiVersion.destroyEntities.accept(player, entities);
     }
 
     @Override
@@ -59,7 +82,7 @@ public record FabricEntityView(FabricTabPlayer player) implements EntityView {
 
     @Override
     public boolean isNamedEntitySpawnPacket(@NotNull Object packet) {
-        return packet instanceof ClientboundAddEntityPacket;
+        return FabricMultiVersion.isSpawnPlayerPacket.apply((Packet<?>) packet);
     }
 
     @Override
@@ -73,22 +96,38 @@ public record FabricEntityView(FabricTabPlayer player) implements EntityView {
     }
 
     @Override
+    @SneakyThrows
     public int getTeleportEntityId(@NotNull Object teleportPacket) {
-        return ((ClientboundTeleportEntityPacket) teleportPacket).getId();
+        // Reflection because on 1.16.5 there is no getter and per-version code would only add unnecessary code
+        return ReflectionUtils.getFields(ClientboundTeleportEntityPacket.class, int.class).get(0).getInt(teleportPacket);
     }
 
     @Override
+    @SneakyThrows
     public int getMoveEntityId(@NotNull Object movePacket) {
-        return ((ClientboundMoveEntityPacket) movePacket).entityId;
+        return (int) ReflectionUtils.getFields(ClientboundMoveEntityPacket.class, int.class).get(0).get(movePacket);
     }
 
     @Override
+    @SneakyThrows
     public int getSpawnedPlayer(@NotNull Object playerSpawnPacket) {
-        return ((ClientboundAddEntityPacket) playerSpawnPacket).getId();
+        // On 1.16.5- getter is client-only and on 1.20.2+ it is a different class
+        return ReflectionUtils.getFields(playerSpawnPacket.getClass(), int.class).get(0).getInt(playerSpawnPacket);
     }
 
     @Override
+    @SneakyThrows
     public int[] getDestroyedEntities(@NotNull Object destroyPacket) {
-        return ((ClientboundRemoveEntitiesPacket) destroyPacket).getEntityIds().toIntArray();
+        return FabricMultiVersion.getDestroyedEntities.apply(destroyPacket);
+    }
+
+    @Override
+    public boolean isBundlePacket(@NotNull Object packet) {
+        return FabricMultiVersion.isBundlePacket.apply((Packet<?>) packet);
+    }
+
+    @Override
+    public Iterable<Object> getPackets(@NotNull Object bundlePacket) {
+        return FabricMultiVersion.getBundledPackets.apply((Packet<?>) bundlePacket);
     }
 }

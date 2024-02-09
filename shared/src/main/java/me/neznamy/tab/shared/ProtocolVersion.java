@@ -2,7 +2,6 @@ package me.neznamy.tab.shared;
 
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Setter;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -11,9 +10,9 @@ import org.jetbrains.annotations.NotNull;
 @Getter
 public enum ProtocolVersion {
 
-    UNKNOWN_SERVER_VERSION ("Unknown"),
-    UNKNOWN_CLIENT_VERSION ("Unknown"),
-    PROXY   ("Proxy"),
+    UNKNOWN,
+    V1_20_4 (765),
+    V1_20_3 (765),
     V1_20_2 (764),
     V1_20_1 (763),
     V1_20   (763),
@@ -72,16 +71,21 @@ public enum ProtocolVersion {
     V1_6_1  (73),
     V1_5_2  (61),
     V1_5_1  (60),
-    V1_5    (60);
+    V1_5    (60),
+    V1_4_7  (51),
+    V1_4_6  (51);
 
-    /** Version's network id found at https://wiki.vg/Protocol_version_numbers */
+    /** Newest MC version this plugin jar knows */
+    public static final ProtocolVersion LATEST_KNOWN_VERSION = V1_20_4;
+
+    /** Version's network id found at <a href="https://wiki.vg/Protocol_version_numbers">wiki.vg</a> */
     private final int networkId;
 
     /** Version's minor version, such as 16 for 1.16.x. Allowing override to
      * set minor version of UNKNOWN_SERVER_VERSION value to value from package to fix compatibility
      * with server forks that set bukkit version field value to "Unknown".
      */
-    @Setter private int minorVersion;
+    private final int minorVersion;
 
     /** Version's friendly name displayed in %player-version% placeholder */
     @NotNull private final String friendlyName;
@@ -94,20 +98,27 @@ public enum ProtocolVersion {
      */
     ProtocolVersion(int networkId) {
         this.networkId = networkId;
-        this.minorVersion = Integer.parseInt(toString().split("_")[1]);
-        this.friendlyName = toString().substring(1).replace("_", ".");
+        minorVersion = Integer.parseInt(toString().split("_")[1]);
+        friendlyName = toString().substring(1).replace("_", ".");
     }
 
     /**
-     * Constructs new instance with given friendly name
-     *
-     * @param   friendlyName
-     *          friendly name to display
+     * Constructs new instance.
      */
-    ProtocolVersion(@NotNull String friendlyName) {
-        this.networkId = 999;
-        this.minorVersion = 18;
-        this.friendlyName = friendlyName;
+    ProtocolVersion() {
+        networkId = 999;
+        minorVersion = 99;
+        friendlyName = "Unknown";
+    }
+
+    /**
+     * Returns {@code true} if this version supports RGB codes,
+     * {@code false} if not.
+     *
+     * @return {@code true} if supports, {@code false} if not
+     */
+    public boolean supportsRGB() {
+        return minorVersion >= 16;
     }
 
     /**
@@ -122,7 +133,7 @@ public enum ProtocolVersion {
         try {
             return valueOf("V" + friendlyName.replace(".", "_"));
         } catch (IllegalArgumentException e) {
-            return UNKNOWN_SERVER_VERSION;
+            return UNKNOWN;
         }
     }
 
@@ -135,8 +146,8 @@ public enum ProtocolVersion {
      */
     public static @NotNull ProtocolVersion fromNetworkId(int networkId) {
         for (ProtocolVersion v : values()) {
-            if (networkId == v.getNetworkId()) return v;
+            if (networkId == v.networkId) return v;
         }
-        return UNKNOWN_CLIENT_VERSION;
+        return UNKNOWN;
     }
 }

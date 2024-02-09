@@ -5,9 +5,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.api.placeholder.Placeholder;
 import me.neznamy.tab.shared.Property;
 import me.neznamy.tab.shared.TAB;
@@ -61,10 +61,10 @@ public class ParseCommand extends SubCommand {
             replaced = new Property(null, null, target, replaced, null).get();
         } catch (Exception e) {
             sendMessage(sender, "&cThe placeholder threw an exception when parsing. Check console for more info.");
-            TAB.getInstance().getErrorManager().printError("Placeholder " + replaced + " threw an exception when parsing for player " + target.getName(), e, true);
+            TAB.getInstance().getErrorManager().parseCommandError(replaced, target, e);
             return;
         }
-        IChatBaseComponent colored = IChatBaseComponent.optimizedComponent(EnumChatFormat.color("&3Colored output: &e\"&r" + replaced + "&e\""));
+        TabComponent colored = TabComponent.optimized(EnumChatFormat.color("&3Colored output: &e\"&r" + replaced + "&e\""));
         if (sender != null) {
             sender.sendMessage(colored);
         } else {

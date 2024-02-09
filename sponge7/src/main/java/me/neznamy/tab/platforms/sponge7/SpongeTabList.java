@@ -1,8 +1,10 @@
 package me.neznamy.tab.platforms.sponge7;
 
 import lombok.RequiredArgsConstructor;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.TAB;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.TabList;
+import me.neznamy.tab.shared.platform.TabPlayer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.api.entity.living.player.gamemode.GameMode;
@@ -23,7 +25,7 @@ import java.util.WeakHashMap;
 public class SpongeTabList implements TabList {
 
     /** Gamemode array for fast access */
-    private static final GameMode[] gameModes = new GameMode[]{
+    private static final GameMode[] gameModes = {
             GameModes.SURVIVAL, GameModes.CREATIVE, GameModes.ADVENTURE, GameModes.SPECTATOR
     };
 
@@ -32,7 +34,7 @@ public class SpongeTabList implements TabList {
     private final SpongeTabPlayer player;
 
     /** Expected names based on configuration, saving to restore them if another plugin overrides them */
-    private final Map<TabListEntry, Text> expectedDisplayNames = new WeakHashMap<>();
+    private final Map<TabPlayer, Text> expectedDisplayNames = new WeakHashMap<>();
 
     @Override
     public void removeEntry(@NotNull UUID entry) {
@@ -40,11 +42,11 @@ public class SpongeTabList implements TabList {
     }
 
     @Override
-    public void updateDisplayName(@NotNull UUID entry, @Nullable IChatBaseComponent displayName) {
+    public void updateDisplayName(@NotNull UUID entry, @Nullable TabComponent displayName) {
         player.getPlayer().getTabList().getEntry(entry).ifPresent(e -> {
-            Text component = displayName == null ? null : player.getPlatform().toComponent(displayName, player.getVersion());
+            Text component = displayName == null ? null : Text.of(displayName.toLegacyText());
             e.setDisplayName(component);
-            expectedDisplayNames.put(e, component);
+            setExpectedDisplayName(entry, component);
         });
     }
 
@@ -60,7 +62,7 @@ public class SpongeTabList implements TabList {
 
     @Override
     public void addEntry(@NotNull Entry entry) {
-        Text displayName = entry.getDisplayName() == null ? null : player.getPlatform().toComponent(entry.getDisplayName(), player.getVersion());
+        Text displayName = entry.getDisplayName() == null ? null : Text.of(entry.getDisplayName().toLegacyText());
         GameProfile profile = GameProfile.of(entry.getUniqueId(), entry.getName());
         if (entry.getSkin() != null) profile.getPropertyMap().put(TEXTURES_PROPERTY, ProfileProperty.of(
                 TEXTURES_PROPERTY, entry.getSkin().getValue(), entry.getSkin().getSignature()));
@@ -72,25 +74,37 @@ public class SpongeTabList implements TabList {
                 .displayName(displayName)
                 .build();
         player.getPlayer().getTabList().addEntry(tabListEntry);
-        expectedDisplayNames.put(tabListEntry, displayName);
+        setExpectedDisplayName(entry.getUniqueId(), displayName);
+
+        if (player.getVersion().getMinorVersion() == 8) {
+            // Compensation for 1.8.0 client sided bug
+            updateDisplayName(entry.getUniqueId(), entry.getDisplayName());
+        }
     }
 
     @Override
-    public void setPlayerListHeaderFooter(@NotNull IChatBaseComponent header, @NotNull IChatBaseComponent footer) {
+    public void setPlayerListHeaderFooter(@NotNull TabComponent header, @NotNull TabComponent footer) {
         player.getPlayer().getTabList().setHeaderAndFooter(
-                player.getPlatform().toComponent(header, player.getVersion()),
-                player.getPlatform().toComponent(footer, player.getVersion())
+                Text.of(header.toLegacyText()),
+                Text.of(footer.toLegacyText())
         );
     }
 
     @Override
     public void checkDisplayNames() {
-        for (TabListEntry entry : player.getPlayer().getTabList().getEntries()) {
-            Text expectedComponent = expectedDisplayNames.get(entry);
-            if (expectedComponent != null && entry.getDisplayName().orElse(null) != expectedComponent) {
-                displayNameWrong(entry.getProfile().getName().orElse(null), player);
-                entry.setDisplayName(expectedComponent);
-            }
+        for (TabPlayer target : TAB.getInstance().getOnlinePlayers()) {
+            player.getPlayer().getTabList().getEntry(target.getUniqueId()).ifPresent(entry -> {
+                Text expectedComponent = expectedDisplayNames.get(target);
+                if (expectedComponent != null && entry.getDisplayName().orElse(null) != expectedComponent) {
+                    displayNameWrong(target.getName(), player);
+                    entry.setDisplayName(expectedComponent);
+                }
+            });
         }
+    }
+
+    private void setExpectedDisplayName(@NotNull UUID entry, @Nullable Text displayName) {
+        TabPlayer player = TAB.getInstance().getPlayerByTabListUUID(entry);
+        if (player != null) expectedDisplayNames.put(player, displayName);
     }
 }

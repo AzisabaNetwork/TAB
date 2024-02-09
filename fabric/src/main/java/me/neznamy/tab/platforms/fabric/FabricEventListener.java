@@ -9,15 +9,29 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.NotNull;
 
-public class FabricEventListener extends EventListener<ServerPlayer> {
+/**
+ * Event listener for Fabric.
+ */
+public class FabricEventListener implements EventListener<ServerPlayer> {
 
+    /**
+     * Registers all event listeners.
+     */
     public void register() {
         ServerPlayConnectionEvents.DISCONNECT.register((connection, $) -> quit(connection.player.getUUID()));
         ServerPlayConnectionEvents.JOIN.register((connection, $, $$) -> join(connection.player));
-        ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, origin, destination) ->
-                worldChange(player.getUUID(), destination.dimension().location().toString()));
-        //TODO command
-        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> replacePlayer(oldPlayer.getUUID(), newPlayer));
+        //TODO command preprocess
+        if (FabricTAB.supportsEntityEvents()) {
+            // Added in 1.16
+            ServerPlayerEvents.AFTER_RESPAWN.register(
+                    (oldPlayer, newPlayer, alive) -> {
+                        replacePlayer(newPlayer.getUUID(), newPlayer);
+                        // respawning from death & taking end portal in the end do not call world change event
+                        worldChange(newPlayer.getUUID(), FabricMultiVersion.getLevelName.apply(FabricMultiVersion.getLevel.apply(newPlayer)));
+                    });
+            ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register(
+                    (player, origin, destination) -> worldChange(player.getUUID(), FabricMultiVersion.getLevelName.apply(destination)));
+        } // TODO else
     }
 
     @Override

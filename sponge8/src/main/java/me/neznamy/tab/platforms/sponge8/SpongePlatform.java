@@ -1,11 +1,12 @@
 package me.neznamy.tab.platforms.sponge8;
 
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.backend.BackendPlatform;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.features.injection.PipelineInjector;
 import me.neznamy.tab.shared.features.nametags.NameTag;
 import me.neznamy.tab.shared.features.types.TabFeature;
@@ -26,15 +27,19 @@ import java.io.File;
  * Platform implementation for Sponge 8 and up
  */
 @RequiredArgsConstructor
-public class SpongePlatform implements BackendPlatform<Component> {
+public class SpongePlatform implements BackendPlatform {
 
     /** Main class reference */
     @NotNull
     private final Sponge8TAB plugin;
 
+    /** Server version */
+    @Getter
+    private final ProtocolVersion serverVersion = ProtocolVersion.fromFriendlyName(Sponge.game().platform().minecraftVersion().name());
+
     @Override
     public void registerUnknownPlaceholder(@NotNull String identifier) {
-        TAB.getInstance().getPlaceholderManager().registerServerPlaceholder(identifier, -1, () -> identifier);
+        registerDummyPlaceholder(identifier);
     }
 
     @Override
@@ -69,15 +74,15 @@ public class SpongePlatform implements BackendPlatform<Component> {
     }
 
     @Override
-    public void logInfo(@NotNull IChatBaseComponent message) {
+    public void logInfo(@NotNull TabComponent message) {
         Sponge.systemSubject().sendMessage(Component.text("[TAB] ").append(
-                toComponent(message, TAB.getInstance().getServerVersion())));
+                AdventureHook.toAdventureComponent(message, serverVersion)));
     }
 
     @Override
-    public void logWarn(@NotNull IChatBaseComponent message) {
+    public void logWarn(@NotNull TabComponent message) {
         Sponge.systemSubject().sendMessage(Component.text("[TAB] [WARN] ").append(
-                toComponent(message, TAB.getInstance().getServerVersion()))); // Sponge console does not support colors
+                AdventureHook.toAdventureComponent(message, serverVersion))); // Sponge console does not support colors
     }
 
     @Override
@@ -98,27 +103,15 @@ public class SpongePlatform implements BackendPlatform<Component> {
 
     @Override
     public void startMetrics() {
-        Metrics metrics = plugin.getMetricsFactory().make(17732);
+        Metrics metrics = plugin.getMetricsFactory().make(TabConstants.BSTATS_PLUGIN_ID_SPONGE);
         metrics.startup(null);
-        metrics.addCustomChart(new SimplePie(TabConstants.MetricsChart.SERVER_VERSION,
-                () -> TAB.getInstance().getServerVersion().getFriendlyName()));
-    }
-
-    @Override
-    @NotNull
-    public ProtocolVersion getServerVersion() {
-        return ProtocolVersion.fromFriendlyName(Sponge.game().platform().minecraftVersion().name());
+        metrics.addCustomChart(new SimplePie(TabConstants.MetricsChart.SERVER_VERSION, serverVersion::getFriendlyName));
     }
 
     @Override
     @NotNull
     public File getDataFolder() {
         return plugin.getConfigDir().toFile();
-    }
-
-    @Override
-    public Component toComponent(@NotNull IChatBaseComponent component, @NotNull ProtocolVersion version) {
-        return AdventureHook.toAdventureComponent(component, version);
     }
 
     @Override

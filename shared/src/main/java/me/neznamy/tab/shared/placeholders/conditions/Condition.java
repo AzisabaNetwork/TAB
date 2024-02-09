@@ -2,6 +2,8 @@ package me.neznamy.tab.shared.placeholders.conditions;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import lombok.Getter;
 import lombok.NonNull;
@@ -10,6 +12,7 @@ import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.features.PlaceholderManagerImpl;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -87,7 +90,7 @@ public class Condition {
             if (condition != null) {
                 subConditions.add(condition);
             } else {
-                TAB.getInstance().getMisconfigurationHelper().invalidConditionPattern(name, line);
+                TAB.getInstance().getConfigHelper().startup().invalidConditionPattern(name, line);
             }
         }
         PlaceholderManagerImpl pm = TAB.getInstance().getPlaceholderManager();
@@ -160,6 +163,8 @@ public class Condition {
      */
     public static Condition getCondition(String string) {
         if (string == null || string.isEmpty()) return null;
+        if (string.equals("true")) return TrueCondition.INSTANCE;
+        if (string.equals("false")) return FalseCondition.INSTANCE;
         if (registeredConditions.containsKey(string)) {
             return registeredConditions.get(string);
         } else {
@@ -170,27 +175,44 @@ public class Condition {
                 conditions = Arrays.asList(string.split(";"));
             } else {
                 type = false;
-                conditions = Arrays.asList(string.split("\\|"));
-
-                // Fix conflict with | for multiple conditions and |- for "startsWith"
-                List<String> fixedConditions = new ArrayList<>();
-                for (int i=0; i<conditions.size(); i++) {
-                    String expression = conditions.get(i);
-                    if (i < conditions.size()-1 && conditions.get(i+1).startsWith("-")) {
-                        fixedConditions.add(expression + "|" + conditions.get(i+1));
-                        i++;
-                    } else {
-                        fixedConditions.add(expression);
-                    }
-                }
-                conditions = fixedConditions;
+                conditions = splitString(string);
             }
             Condition c = new Condition(type, "AnonymousCondition[" + string + "]", conditions, "true", "false");
             c.finishSetup();
-            TAB.getInstance().getPlaceholderManager().registerPlayerPlaceholder(TabConstants.Placeholder.condition(c.getName()), c.getRefresh(),
+            TAB.getInstance().getPlaceholderManager().registerPlayerPlaceholder(TabConstants.Placeholder.condition(c.name), c.refresh,
                     p -> c.getText((TabPlayer) p));
             return c;
         }
+    }
+
+    /**
+     * Splits string using `|` symbol except cases where it is used as |- or -|.
+     * This method was 100% made by ChatGPT!
+     *
+     * @param   input
+     *          String to split
+     * @return  Split string
+     */
+    private static List<String> splitString(@NotNull String input) {
+        List<String> result = new ArrayList<>();
+
+        // Define a regular expression pattern to match the desired delimiter
+        Pattern pattern = Pattern.compile("(?<!-)[|](?!-)");
+
+        // Use a Matcher to split the input string
+        Matcher matcher = pattern.matcher(input);
+        int start = 0;
+
+        while (matcher.find()) {
+            int end = matcher.start();
+            result.add(input.substring(start, end));
+            start = matcher.end();
+        }
+
+        // Add the remaining part of the string
+        result.add(input.substring(start));
+
+        return result;
     }
 
     /**
@@ -218,7 +240,7 @@ public class Condition {
      * @return  compiled condition or null if no valid pattern was found
      */
     private static Function<TabPlayer, Boolean> compile(String line) {
-        for (Map.Entry<String, Function<String, Function<TabPlayer, Boolean>>> entry : Condition.getConditionTypes().entrySet()) {
+        for (Map.Entry<String, Function<String, Function<TabPlayer, Boolean>>> entry : conditionTypes.entrySet()) {
             if (line.contains(entry.getKey())) {
                 return entry.getValue().apply(line);
             }

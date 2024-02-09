@@ -5,19 +5,17 @@ import com.velocitypowered.api.command.CommandManager;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import me.neznamy.tab.platforms.velocity.features.VelocityRedisSupport;
-import me.neznamy.tab.shared.ProtocolVersion;
+import me.neznamy.tab.platforms.velocity.hook.VelocityPremiumVanishHook;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.features.injection.PipelineInjector;
 import me.neznamy.tab.shared.features.redis.RedisSupport;
-import me.neznamy.tab.shared.hook.AdventureHook;
+import me.neznamy.tab.shared.hook.PremiumVanishHook;
 import me.neznamy.tab.shared.proxy.ProxyPlatform;
 import me.neznamy.tab.shared.util.ReflectionUtils;
-import net.kyori.adventure.text.Component;
 import org.bstats.charts.SimplePie;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -27,8 +25,7 @@ import java.io.File;
 /**
  * Velocity implementation of Platform
  */
-@RequiredArgsConstructor
-public class VelocityPlatform extends ProxyPlatform<Component> {
+public class VelocityPlatform extends ProxyPlatform {
 
     @NotNull
     private final VelocityTAB plugin;
@@ -36,6 +33,19 @@ public class VelocityPlatform extends ProxyPlatform<Component> {
     /** Plugin message channel */
     @Getter
     private final MinecraftChannelIdentifier MCI = MinecraftChannelIdentifier.from(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME);
+
+    /**
+     * Constructs new instance with given plugin reference.
+     *
+     * @param   plugin
+     *          Plugin instance
+     */
+    public VelocityPlatform(VelocityTAB plugin) {
+        this.plugin = plugin;
+        if (plugin.getServer().getPluginManager().isLoaded("premiumvanish")) {
+            PremiumVanishHook.setInstance(new VelocityPremiumVanishHook());
+        }
+    }
 
     @Override
     public void loadPlayers() {
@@ -55,13 +65,13 @@ public class VelocityPlatform extends ProxyPlatform<Component> {
     }
 
     @Override
-    public void logInfo(@NotNull IChatBaseComponent message) {
+    public void logInfo(@NotNull TabComponent message) {
         plugin.getLogger().info(message.toLegacyText());
     }
 
     @Override
-    public void logWarn(@NotNull IChatBaseComponent message) {
-        plugin.getLogger().warn(EnumChatFormat.RED.getFormat() + message.toLegacyText());
+    public void logWarn(@NotNull TabComponent message) {
+        plugin.getLogger().warn(EnumChatFormat.RED + message.toLegacyText());
     }
 
     @Override
@@ -83,7 +93,7 @@ public class VelocityPlatform extends ProxyPlatform<Component> {
 
     @Override
     public void startMetrics() {
-        plugin.getMetricsFactory().make(plugin, 10533)
+        plugin.getMetricsFactory().make(plugin, TabConstants.BSTATS_PLUGIN_ID_VELOCITY)
                 .addCustomChart(new SimplePie(TabConstants.MetricsChart.GLOBAL_PLAYER_LIST_ENABLED,
                 () -> TAB.getInstance().getFeatureManager().isFeatureEnabled(TabConstants.Feature.GLOBAL_PLAYER_LIST) ? "Yes" : "No"));
     }
@@ -92,11 +102,6 @@ public class VelocityPlatform extends ProxyPlatform<Component> {
     @NotNull
     public File getDataFolder() {
         return plugin.getDataFolder().toFile();
-    }
-
-    @Override
-    public Component toComponent(@NotNull IChatBaseComponent component, @NotNull ProtocolVersion version) {
-        return AdventureHook.toAdventureComponent(component, version);
     }
 
     @Override

@@ -7,15 +7,12 @@ import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.placeholders.expansion.TabExpansion;
+import me.neznamy.tab.shared.util.ReflectionUtils;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.*;
 
 /**
  * TAB's expansion for PlaceholderAPI
@@ -29,7 +26,7 @@ public class BukkitTabExpansion extends PlaceholderExpansion implements TabExpan
 
     /** List of all placeholders offered by the plugin for command suggestions */
     @NotNull
-    private final List<String> placeholders = Arrays.asList(
+    private final List<String> placeholders = Collections.unmodifiableList(Arrays.asList(
             "%tab_tabprefix%",
             "%tab_tabsuffix%",
             "%tab_tagprefix%",
@@ -53,7 +50,7 @@ public class BukkitTabExpansion extends PlaceholderExpansion implements TabExpan
             "%tab_nametag_visibility%",
             "%tab_replace_<placeholder>%",
             "%tab_placeholder_<placeholder>%"
-    );
+    ));
 
     @Override
     public boolean persist() {
@@ -100,7 +97,7 @@ public class BukkitTabExpansion extends PlaceholderExpansion implements TabExpan
             return text;
         }
         if (identifier.startsWith("placeholder_")) {
-            TAB.getInstance().getPlaceholderManager().addUsedPlaceholder("%" + identifier.substring(12) + "%", TAB.getInstance().getPlaceholderManager());
+            TAB.getInstance().getPlaceholderManager().addUsedPlaceholder("%" + identifier.substring("placeholder_".length()) + "%", TAB.getInstance().getPlaceholderManager());
         }
         if (player == null) return "<Player cannot be null>";
         TabPlayer p = TAB.getInstance().getPlayer(player.getUniqueId());
@@ -111,5 +108,16 @@ public class BukkitTabExpansion extends PlaceholderExpansion implements TabExpan
     @Override
     public void setValue(@NotNull TabPlayer player, @NotNull String key, @NotNull String value) {
         values.computeIfAbsent(player, p -> new HashMap<>()).put(key, value);
+    }
+
+    @Override
+    @SuppressWarnings({"UnstableApiUsage", "deprecation"})
+    public void unregisterExpansion() {
+        if (ReflectionUtils.methodExists(PlaceholderExpansion.class, "unregister")) {
+            // Added in 2.10.7 (Jul 28, 2020)
+            unregister();
+        } else {
+            PlaceholderAPI.unregisterExpansion(this);
+        }
     }
 }

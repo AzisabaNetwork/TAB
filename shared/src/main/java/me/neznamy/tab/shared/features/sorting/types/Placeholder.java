@@ -1,9 +1,12 @@
 package me.neznamy.tab.shared.features.sorting.types;
 
+import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.features.sorting.Sorting;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 
@@ -12,7 +15,7 @@ import java.util.Locale;
  */
 public class Placeholder extends SortingType {
 
-    //map Value-Number where number is used in team name based on value
+    /** Map of priorities for each output */
     private final LinkedHashMap<String, Integer> sortingMap;
 
     /**
@@ -26,11 +29,19 @@ public class Placeholder extends SortingType {
     public Placeholder(Sorting sorting, String options) {
         super(sorting, "PLACEHOLDER", getPlaceholder(options));
         String[] args = options.split(":");
-        if (args.length > 1)
-            sortingMap = convertSortingElements(args[args.length-1].split(","));
-        else
-            // Invalid configuration
+        String elements = args[args.length-1];
+        if (args.length > 1) {
+            String[] array = elements.split(",");
+            if (elements.endsWith(",")) {
+                // Allow empty string as output
+                array = Arrays.copyOf(array, array.length+1);
+                array[array.length-1] = "";
+            }
+            sortingMap = convertSortingElements(array);
+        } else {
+            TAB.getInstance().getConfigHelper().startup().incompleteSortingLine("PLACEHOLDER:" + options);
             sortingMap = new LinkedHashMap<>();
+        }
     }
 
     /**
@@ -48,11 +59,12 @@ public class Placeholder extends SortingType {
     }
 
     @Override
-    public String getChars(TabPlayer p) {
+    public String getChars(@NotNull TabPlayer p) {
         String output = EnumChatFormat.color(setPlaceholders(p));
         sorting.setTeamNameNote(p, sorting.getTeamNameNote(p) + "\n-> " + sortingPlaceholder + " returned \"&e" + output + "&r\"");
         int position;
         if (!sortingMap.containsKey(output.toLowerCase(Locale.US))) {
+            TAB.getInstance().getConfigHelper().runtime().valueNotInPredefinedValues(sortingPlaceholder, sortingMap.keySet(), output, p);
             position = sortingMap.size()+1;
             sorting.setTeamNameNote(p, sorting.getTeamNameNote(p) + "&c (not in list)&r. ");
         } else {

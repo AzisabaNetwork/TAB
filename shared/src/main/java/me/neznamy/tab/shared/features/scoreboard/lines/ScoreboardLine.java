@@ -2,13 +2,20 @@ package me.neznamy.tab.shared.features.scoreboard.lines;
 
 import lombok.Getter;
 import lombok.NonNull;
+import me.neznamy.tab.shared.Limitations;
+import me.neznamy.tab.shared.Property;
+import me.neznamy.tab.shared.TAB;
+import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
 import me.neznamy.tab.api.scoreboard.Line;
+import me.neznamy.tab.shared.features.scoreboard.ScoreRefresher;
+import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.features.types.TabFeature;
 import me.neznamy.tab.shared.platform.Scoreboard;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.features.scoreboard.ScoreboardImpl;
 import me.neznamy.tab.shared.features.scoreboard.ScoreboardManagerImpl;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
 import java.util.Set;
@@ -17,24 +24,31 @@ import java.util.WeakHashMap;
 /**
  * Abstract class representing a line of scoreboard
  */
-public abstract class ScoreboardLine extends TabFeature implements Line {
+@Getter
+public abstract class ScoreboardLine extends TabFeature implements Line, Refreshable {
 
-    @Getter private final String featureName = "Scoreboard";
+    private final String featureName = "Scoreboard";
+    private final String refreshDisplayName = "Updating Scoreboard lines";
 
     //ID of this line
     protected final int lineNumber;
-    
+
+    protected final String textProperty = Property.randomName();
+
     //text to display
-    @Getter protected String text;
+    protected String text;
+    protected String numberFormat;
     
     //scoreboard this line belongs to
     protected final ScoreboardImpl parent;
     
     //scoreboard team name of player in this line
-    @Getter protected final String teamName;
+    protected final String teamName;
     
     //forced player name start to make lines unique & sort them by names
-    @Getter protected final String playerName;
+    protected final String playerName;
+
+    private final ScoreRefresher scoreRefresher;
 
     private final Set<TabPlayer> shownPlayers = Collections.newSetFromMap(new WeakHashMap<>());
     
@@ -46,11 +60,14 @@ public abstract class ScoreboardLine extends TabFeature implements Line {
      * @param   lineNumber
      *          ID of this line
      */
-    protected ScoreboardLine(@NonNull ScoreboardImpl parent, int lineNumber) {
+    protected ScoreboardLine(@NonNull ScoreboardImpl parent, int lineNumber, String text) {
+        initializeText(text);
         this.parent = parent;
         this.lineNumber = lineNumber;
-        teamName = "TAB-SB-TM-" + lineNumber;
+        teamName = "TAB-Sidebar-" + lineNumber;
         playerName = getPlayerName(lineNumber);
+        scoreRefresher = new ScoreRefresher(this, numberFormat);
+        TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.scoreboardScore(parent.getName(), lineNumber), scoreRefresher);
     }
     
     /**
@@ -72,6 +89,8 @@ public abstract class ScoreboardLine extends TabFeature implements Line {
     /**
      * Returns forced name start of this line to specified viewer
      *
+     * @param   viewer
+     *          Player to get forced name start for
      * @return  forced name start of this line to specified viewer
      */
     public String getPlayerName(@NonNull TabPlayer viewer) {
@@ -102,9 +121,7 @@ public abstract class ScoreboardLine extends TabFeature implements Line {
      * @return  forced name start
      */
     protected String getPlayerName(int lineNumber) {
-        String id = String.valueOf(lineNumber);
-        if (id.length() == 1) id = "0" + id;
-        return EnumChatFormat.COLOR_STRING + id.charAt(0) + EnumChatFormat.COLOR_STRING + id.charAt(1) + EnumChatFormat.COLOR_STRING + "r";
+        return EnumChatFormat.COLOR_STRING + "0123456789abcdefklmnor".charAt(lineNumber-1) + EnumChatFormat.COLOR_STRING + "r";
     }
     
     /**
@@ -120,9 +137,23 @@ public abstract class ScoreboardLine extends TabFeature implements Line {
      *          suffix
      */
     protected void addLine(@NonNull TabPlayer p, @NonNull String fakePlayer, @NonNull String prefix, @NonNull String suffix) {
-        p.getScoreboard().setScore(ScoreboardManagerImpl.OBJECTIVE_NAME, fakePlayer, getNumber(p));
-        p.getScoreboard().registerTeam(teamName, prefix, suffix, Scoreboard.NameVisibility.NEVER,
-                Scoreboard.CollisionRule.NEVER, Collections.singletonList(fakePlayer), 0);
+        p.getScoreboard().setScore(
+                ScoreboardManagerImpl.OBJECTIVE_NAME,
+                fakePlayer,
+                getNumber(p),
+                null, // Makes no sense for TAB
+                scoreRefresher.getNumberFormat(p)
+        );
+        p.getScoreboard().registerTeam(
+                teamName,
+                prefix,
+                suffix,
+                Scoreboard.NameVisibility.NEVER,
+                Scoreboard.CollisionRule.NEVER,
+                Collections.singletonList(fakePlayer),
+                0,
+                EnumChatFormat.RESET
+        );
         shownPlayers.add(p);
     }
     
@@ -164,7 +195,7 @@ public abstract class ScoreboardLine extends TabFeature implements Line {
      * @param   text
      *          text to display
      * @param   maxNameLength
-     *          maximum length of name field, used values are 16 characters for &lt;1.8 and 40 for 1.8+
+     *          maximum length of name field
      * @return  Split text as an array of 3 elements
      */
     protected String[] splitText(@NonNull String playerNameStart, @NonNull String text, int maxNameLength) {
@@ -176,12 +207,10 @@ public abstract class ScoreboardLine extends TabFeature implements Line {
             nameValue = playerNameStart + text;
             suffixValue = "";
         } else {
-            String[] prefixOther = split(text, 16);
+            String[] prefixOther = split(text, Limitations.TEAM_PREFIX_SUFFIX_PRE_1_13);
             prefixValue = prefixOther[0];
             String other = prefixOther[1];
-            if (playerNameStart.length() > 0) {
-                other = playerNameStart + EnumChatFormat.getLastColors(prefixValue) + other;
-            }
+            other = playerNameStart + EnumChatFormat.getLastColors(prefixValue) + other;
             String[] nameSuffix = split(other, maxNameLength);
             nameValue = nameSuffix[0];
             suffixValue = nameSuffix[1];
@@ -189,7 +218,50 @@ public abstract class ScoreboardLine extends TabFeature implements Line {
         return new String[]{prefixValue, nameValue, suffixValue};
     }
 
+    /**
+     * Returns {@code true} if this line is visible to specified player,
+     * {@code false} if not.
+     *
+     * @param   player
+     *          Player to check
+     * @return  {@code true} if shown, {@code false} if not
+     */
     public boolean isShownTo(@NonNull TabPlayer player) {
         return shownPlayers.contains(player);
+    }
+
+    /**
+     * Splits text using {@code "||"} string, where first part is text to display and
+     * second part is number format (optional)
+     *
+     * @param   text
+     *          Inputted text to categorize
+     */
+    protected void initializeText(@NotNull String text) {
+        String[] split = text.split("\\|\\|");
+        this.text = split[0];
+        numberFormat = split.length >= 2 ? split[1] : "";
+    }
+
+    /**
+     * Updates prefix/suffix of the fake player.
+     *
+     * @param   player
+     *          Player to send the update to
+     * @param   prefix
+     *          Prefix to use
+     * @param   suffix
+     *          Suffix to use
+     */
+    protected void updateTeam(@NotNull TabPlayer player, @NotNull String prefix, @NotNull String suffix) {
+        player.getScoreboard().updateTeam(
+                teamName,
+                prefix,
+                suffix,
+                Scoreboard.NameVisibility.ALWAYS,
+                Scoreboard.CollisionRule.ALWAYS,
+                0,
+                EnumChatFormat.RESET
+        );
     }
 }

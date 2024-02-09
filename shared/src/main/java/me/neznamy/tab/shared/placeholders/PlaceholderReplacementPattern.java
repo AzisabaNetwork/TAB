@@ -18,6 +18,9 @@ import org.jetbrains.annotations.NotNull;
  */
 public class PlaceholderReplacementPattern {
 
+    /** Flag tracking if any replacements are set */
+    private final boolean hasReplacements;
+
     /**
      * Full replacement map with values colored and keys being duplicated,
      * once with and once without colors
@@ -43,6 +46,7 @@ public class PlaceholderReplacementPattern {
      *          replacement map from config
      */
     public PlaceholderReplacementPattern(@NonNull String identifier, @NonNull Map<Object, Object> map) {
+        hasReplacements = !map.isEmpty();
         for (Entry<Object, Object> entry : map.entrySet()) {
             String key = String.valueOf(entry.getKey());
             String value = String.valueOf(entry.getValue()).replace(identifier, "%value%");
@@ -77,6 +81,7 @@ public class PlaceholderReplacementPattern {
      * @return  replacement or {@code output} if no pattern is matching
      */
     public @NotNull String findReplacement(@NonNull String output) {
+        if (!hasReplacements) return output;
         String replacement = findReplacement0(output);
         if (replacement.contains("%value%")) {
             replacement = replacement.replace("%value%", output);
@@ -93,22 +98,19 @@ public class PlaceholderReplacementPattern {
      * @return  replacement or {@code output} if no pattern is matching
      */
     private @NotNull String findReplacement0(@NonNull String output) {
-        //skipping check if no replacements are defined
-        if (replacements.isEmpty()) return output;
-        
         //exact output
         if (replacements.containsKey(output)) {
             return replacements.get(output);
         }
         
         //number interval
-        if (numberIntervals.size() > 0) {  //not parsing number if no intervals are configured
+        if (!numberIntervals.isEmpty()) {  //not parsing number if no intervals are configured
             try {
                 //supporting placeholders with fancy output using "," every 3 digits
                 String cleanValue = output.contains(",") ? output.replace(",", "") : output;
                 float value = Float.parseFloat(cleanValue);
-                for (float[] interval : numberIntervals.keySet()) {
-                    if (interval[0] <= value && value <= interval[1]) return numberIntervals.get(interval);
+                for (Entry<float[], String> entry : numberIntervals.entrySet()) {
+                    if (entry.getKey()[0] <= value && value <= entry.getKey()[1]) return entry.getValue();
                 }
             } catch (NumberFormatException e) {
                 //placeholder output is not a number

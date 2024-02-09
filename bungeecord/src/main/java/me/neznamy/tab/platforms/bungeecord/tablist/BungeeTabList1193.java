@@ -1,7 +1,7 @@
 package me.neznamy.tab.platforms.bungeecord.tablist;
 
 import me.neznamy.tab.platforms.bungeecord.BungeeTabPlayer;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import net.md_5.bungee.protocol.packet.PlayerListItem.Item;
 import net.md_5.bungee.protocol.packet.PlayerListItemRemove;
 import net.md_5.bungee.protocol.packet.PlayerListItemUpdate;
@@ -17,6 +17,12 @@ import java.util.UUID;
  */
 public class BungeeTabList1193 extends BungeeTabList {
 
+    /**
+     * Constructs new instance with given parameters.
+     *
+     * @param   player
+     *          Player this tablist will belong to
+     */
     public BungeeTabList1193(@NotNull BungeeTabPlayer player) {
         super(player);
     }
@@ -30,9 +36,9 @@ public class BungeeTabList1193 extends BungeeTabList {
     }
 
     @Override
-    public void updateDisplayName(@NotNull UUID entry, @Nullable IChatBaseComponent displayName) {
+    public void updateDisplayName(@NotNull UUID entry, @Nullable TabComponent displayName) {
         Item item = item(entry);
-        item.setDisplayName(displayName == null ? null : displayName.toString(player.getVersion()));
+        if (displayName != null) item.setDisplayName(player.getPlatform().toComponent(displayName, player.getVersion()));
         sendPacket(EnumSet.of(PlayerListItemUpdate.Action.UPDATE_DISPLAY_NAME), item);
     }
 

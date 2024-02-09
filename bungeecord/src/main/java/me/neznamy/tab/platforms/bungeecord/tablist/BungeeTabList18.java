@@ -1,7 +1,7 @@
 package me.neznamy.tab.platforms.bungeecord.tablist;
 
 import me.neznamy.tab.platforms.bungeecord.BungeeTabPlayer;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import net.md_5.bungee.protocol.packet.PlayerListItem;
 import net.md_5.bungee.protocol.packet.PlayerListItem.Item;
 import org.jetbrains.annotations.NotNull;
@@ -15,6 +15,12 @@ import java.util.UUID;
  */
 public class BungeeTabList18 extends BungeeTabList {
 
+    /**
+     * Constructs new instance with given parameters.
+     *
+     * @param   player
+     *          Player this tablist will belong to
+     */
     public BungeeTabList18(@NotNull BungeeTabPlayer player) {
         super(player);
     }
@@ -26,9 +32,9 @@ public class BungeeTabList18 extends BungeeTabList {
     }
 
     @Override
-    public void updateDisplayName(@NotNull UUID entry, @Nullable IChatBaseComponent displayName) {
+    public void updateDisplayName(@NotNull UUID entry, @Nullable TabComponent displayName) {
         Item item = item(entry);
-        item.setDisplayName(displayName == null ? null : displayName.toString(player.getVersion()));
+        if (displayName != null) item.setDisplayName(player.getPlatform().toComponent(displayName, player.getVersion()));
         sendPacket(PlayerListItem.Action.UPDATE_DISPLAY_NAME, item);
     }
 
@@ -50,6 +56,11 @@ public class BungeeTabList18 extends BungeeTabList {
     public void addEntry(@NotNull Entry entry) {
         addUuid(entry.getUniqueId());
         sendPacket(PlayerListItem.Action.ADD_PLAYER, entryToItem(entry));
+
+        if (player.getVersion().getMinorVersion() == 8) {
+            // Compensation for 1.8.0 client sided bug
+            updateDisplayName(entry.getUniqueId(), entry.getDisplayName());
+        }
     }
 
     private void sendPacket(@NotNull PlayerListItem.Action action, @NotNull Item item) {

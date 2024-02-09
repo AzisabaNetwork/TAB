@@ -18,32 +18,27 @@ import net.kyori.event.method.MethodSubscriptionAdapter;
 import net.kyori.event.method.SimpleMethodSubscriptionAdapter;
 import org.jetbrains.annotations.NotNull;
 
-public final class EventBusImpl implements EventBus {
+public class EventBusImpl implements EventBus {
 
     private final SimpleEventBus<TabEvent> bus;
     private final MethodSubscriptionAdapter<Object> methodAdapter;
 
     public EventBusImpl() {
-        this.bus = new SimpleEventBus<TabEvent>(TabEvent.class) {
+        bus = new SimpleEventBus<TabEvent>(TabEvent.class) {
 
             @Override
             protected boolean shouldPost(@NotNull TabEvent event, @NotNull EventSubscriber<?> subscriber) {
                 return true;
             }
         };
-        this.methodAdapter = new SimpleMethodSubscriptionAdapter<>(bus, new MethodHandleEventExecutorFactory<>(), new TabMethodScanner());
+        methodAdapter = new SimpleMethodSubscriptionAdapter<>(bus, new MethodHandleEventExecutorFactory<>(), new TabMethodScanner());
     }
 
-    public <E extends TabEvent> void fire(final E event) {
+    public <E extends TabEvent> void fire(E event) {
         if (!bus.hasSubscribers(event.getClass())) return;
-        final PostResult result = bus.post(event);
+        PostResult result = bus.post(event);
         if (result.exceptions().isEmpty()) return;
-
-        TAB.getInstance().getErrorManager().printError("Some errors occurred whilst trying to fire event " + event);
-        int i = 0;
-        for (final Throwable exception : result.exceptions().values()) {
-            TAB.getInstance().getErrorManager().printError("#" + i++ + ": \n", exception);
-        }
+        TAB.getInstance().getErrorManager().errorFiringEvent(event, result.exceptions().values());
     }
 
     @Override
@@ -66,7 +61,7 @@ public final class EventBusImpl implements EventBus {
         bus.unregister(subscriber -> subscriber instanceof HandlerWrapper && ((HandlerWrapper<?>) subscriber).handler == handler);
     }
 
-    private static final class TabMethodScanner implements MethodScanner<Object> {
+    private static class TabMethodScanner implements MethodScanner<Object> {
 
         @Override
         public boolean shouldRegister(@NotNull Object listener, @NotNull Method method) {
@@ -85,7 +80,7 @@ public final class EventBusImpl implements EventBus {
     }
 
     @AllArgsConstructor
-    private static final class HandlerWrapper<E> implements EventSubscriber<E> {
+    private static class HandlerWrapper<E> implements EventSubscriber<E> {
 
         private final EventHandler<E> handler;
 

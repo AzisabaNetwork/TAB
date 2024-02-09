@@ -4,25 +4,34 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 import me.clip.placeholderapi.PlaceholderAPI;
 import me.neznamy.tab.platforms.bukkit.*;
+import me.neznamy.tab.platforms.bukkit.entity.PacketEntityView;
+import me.neznamy.tab.platforms.bukkit.header.HeaderFooter;
+import me.neznamy.tab.platforms.bukkit.hook.BukkitPremiumVanishHook;
+import me.neznamy.tab.platforms.bukkit.nms.BukkitReflection;
+import me.neznamy.tab.platforms.bukkit.nms.PingRetriever;
+import me.neznamy.tab.platforms.bukkit.scoreboard.ScoreboardLoader;
+import me.neznamy.tab.platforms.bukkit.tablist.TabListBase;
 import me.neznamy.tab.shared.GroupManager;
 import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.StructuredComponent;
+import me.neznamy.tab.shared.chat.SimpleComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.features.injection.PipelineInjector;
 import me.neznamy.tab.shared.features.types.TabFeature;
 import me.neznamy.tab.platforms.bukkit.features.BukkitTabExpansion;
 import me.neznamy.tab.platforms.bukkit.features.PerWorldPlayerList;
 import me.neznamy.tab.platforms.bukkit.features.WitherBossBar;
 import me.neznamy.tab.platforms.bukkit.features.BukkitNameTagX;
-import me.neznamy.tab.platforms.bukkit.nms.NMSStorage;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.backend.BackendPlatform;
 import me.neznamy.tab.shared.features.PlaceholderManagerImpl;
 import me.neznamy.tab.shared.features.bossbar.BossBarManagerImpl;
 import me.neznamy.tab.shared.features.nametags.NameTag;
 import me.neznamy.tab.shared.hook.LuckPermsHook;
-import me.neznamy.tab.shared.placeholders.PlayerPlaceholderImpl;
+import me.neznamy.tab.shared.hook.PremiumVanishHook;
+import me.neznamy.tab.shared.placeholders.types.PlayerPlaceholderImpl;
 import me.neznamy.tab.shared.placeholders.expansion.EmptyTabExpansion;
 import me.neznamy.tab.shared.placeholders.expansion.TabExpansion;
 import me.neznamy.tab.shared.platform.TabPlayer;
@@ -47,20 +56,26 @@ import java.lang.reflect.Field;
  * Implementation of Platform interface for Bukkit platform
  */
 @Getter
-public class BukkitPlatform implements BackendPlatform<Object> {
+public class BukkitPlatform implements BackendPlatform {
 
     /** Plugin instance for registering tasks and events */
     @NotNull
     private final JavaPlugin plugin;
 
+    /** Server version */
+    @Getter
+    private final ProtocolVersion serverVersion = ProtocolVersion.fromFriendlyName(Bukkit.getBukkitVersion().split("-")[0]);
+
     /** Variables checking presence of other plugins to hook into */
     private final boolean placeholderAPI = ReflectionUtils.classExists("me.clip.placeholderapi.PlaceholderAPI");
 
     /** NMS server to get TPS from on spigot */
-    @Nullable private Object server;
+    @Nullable
+    private Object server;
 
     /** TPS field */
-    @Nullable private Field spigotTps;
+    @Nullable
+    private Field spigotTps;
 
     /** Detection for presence of Paper's TPS getter */
     private final boolean paperTps = ReflectionUtils.methodExists(Bukkit.class, "getTPS");
@@ -68,20 +83,43 @@ public class BukkitPlatform implements BackendPlatform<Object> {
     /** Detection for presence of Paper's MSPT getter */
     private final boolean paperMspt = ReflectionUtils.methodExists(Bukkit.class, "getAverageTickTime");
 
+    /**
+     * Constructs new instance with given plugin.
+     *
+     * @param   plugin
+     *          Plugin
+     */
     public BukkitPlatform(@NotNull JavaPlugin plugin) {
         this.plugin = plugin;
+        long time = System.currentTimeMillis();
         try {
             server = Bukkit.getServer().getClass().getMethod("getServer").invoke(Bukkit.getServer());
             spigotTps = server.getClass().getField("recentTps");
-        } catch (ReflectiveOperationException e) {
+        } catch (ReflectiveOperationException ignored) {
             //not spigot
         }
+        if (Bukkit.getPluginManager().isPluginEnabled("PremiumVanish")) {
+            PremiumVanishHook.setInstance(new BukkitPremiumVanishHook());
+        }
+        PacketEntityView.tryLoad();
+        PingRetriever.tryLoad();
+        TabListBase.findInstance();
+        if (BukkitReflection.getMinorVersion() >= 5) {
+            ScoreboardLoader.findInstance();
+        }
+        if (BukkitReflection.getMinorVersion() >= 8) {
+            BukkitPipelineInjector.tryLoad();
+            HeaderFooter.findInstance();
+        }
+        BukkitUtils.sendCompatibilityMessage();
+        Bukkit.getConsoleSender().sendMessage("[TAB] " + EnumChatFormat.GRAY + "Loaded NMS hook in " + (System.currentTimeMillis()-time) + "ms");
     }
 
     @Override
     @NotNull
-    public BossBarManagerImpl getLegacyBossBar() {
-        return new WitherBossBar(plugin);
+    public BossBarManagerImpl getBossBar() {
+        if (BukkitReflection.getMinorVersion() <= 8) return new WitherBossBar(plugin);
+        return new BossBarManagerImpl();
     }
 
     @Override
@@ -106,20 +144,23 @@ public class BukkitPlatform implements BackendPlatform<Object> {
         }
         // Override for the PAPI placeholder to prevent console errors on unsupported server versions when ping field changes
         manager.registerPlayerPlaceholder("%player_ping%", manager.getRefreshInterval("%player_ping%"),
-                p -> ((TabPlayer)p).getPing());
+                p -> ((TabPlayer) p).getPing());
         BackendPlatform.super.registerPlaceholders();
     }
 
     @Override
     @Nullable
     public PipelineInjector createPipelineInjector() {
-        return NMSStorage.getInstance().getMinorVersion() >= 8 ? new BukkitPipelineInjector() : null;
+        return BukkitReflection.getMinorVersion() >= 8 && BukkitPipelineInjector.isAvailable() ? new BukkitPipelineInjector() : null;
     }
 
     @Override
     @NotNull
     public NameTag getUnlimitedNameTags() {
-        return new BukkitNameTagX(plugin);
+        return BukkitReflection.getMinorVersion() >= 8 &&
+                PacketEntityView.isAvailable() &&
+                BukkitPipelineInjector.isAvailable() ?
+                new BukkitNameTagX(plugin) : new NameTag();
     }
 
     @Override
@@ -142,7 +183,7 @@ public class BukkitPlatform implements BackendPlatform<Object> {
     @Override
     public void registerUnknownPlaceholder(@NotNull String identifier) {
         if (!placeholderAPI) {
-            TAB.getInstance().getPlaceholderManager().registerServerPlaceholder(identifier, -1, () -> identifier);
+            registerDummyPlaceholder(identifier);
             return;
         }
         PlaceholderManagerImpl pl = TAB.getInstance().getPlaceholderManager();
@@ -162,6 +203,14 @@ public class BukkitPlatform implements BackendPlatform<Object> {
         }
     }
 
+    /**
+     * Registers a sync placeholder with given identifier and refresh.
+     *
+     * @param   identifier
+     *          Placeholder identifier
+     * @param   refresh
+     *          Placeholder refresh
+     */
     public void registerSyncPlaceholder(@NotNull String identifier, int refresh) {
         String syncedPlaceholder = "%" + identifier.substring(6);
         PlayerPlaceholderImpl[] ppl = new PlayerPlaceholderImpl[1];
@@ -169,28 +218,26 @@ public class BukkitPlatform implements BackendPlatform<Object> {
             Bukkit.getScheduler().runTask(plugin, () -> {
                 long time = System.nanoTime();
                 ppl[0].updateValue(p, placeholderAPI ? PlaceholderAPI.setPlaceholders((Player) p.getPlayer(), syncedPlaceholder) : identifier);
-                TAB.getInstance().getCPUManager().addPlaceholderTime(identifier, System.nanoTime()-time);
+                TAB.getInstance().getCPUManager().addPlaceholderTime(identifier, System.nanoTime() - time);
             });
             return null;
         });
     }
 
     @Override
-    public void logInfo(@NotNull IChatBaseComponent message) {
-        Bukkit.getConsoleSender().sendMessage("[TAB] " + BukkitUtils.toBukkitFormat(message, true));
+    public void logInfo(@NotNull TabComponent message) {
+        Bukkit.getConsoleSender().sendMessage("[TAB] " + toBukkitFormat(message, true));
     }
 
     @Override
-    public void logWarn(@NotNull IChatBaseComponent message) {
-        Bukkit.getConsoleSender().sendMessage(EnumChatFormat.RED.getFormat() + "[TAB] [WARN] " + BukkitUtils.toBukkitFormat(message, true));
+    public void logWarn(@NotNull TabComponent message) {
+        Bukkit.getConsoleSender().sendMessage(EnumChatFormat.RED + "[TAB] [WARN] " + toBukkitFormat(message, true));
     }
 
     @Override
     @NotNull
     public String getServerVersionInfo() {
-        return "[Bukkit] " + Bukkit.getName() + " - " +
-                Bukkit.getBukkitVersion().split("-")[0] +
-                " (" + Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3] + ")";
+        return "[Bukkit] " + Bukkit.getName() + " - " + Bukkit.getBukkitVersion().split("-")[0];
     }
 
     @Override
@@ -206,36 +253,25 @@ public class BukkitPlatform implements BackendPlatform<Object> {
             command.setExecutor(cmd);
             command.setTabCompleter(cmd);
         } else {
-            logWarn(new IChatBaseComponent("Failed to register command, is it defined in plugin.yml?"));
+            logWarn(new SimpleComponent("Failed to register command, is it defined in plugin.yml?"));
         }
     }
 
     @Override
     public void startMetrics() {
-        Metrics metrics = new Metrics(plugin, 5304);
+        Metrics metrics = new Metrics(plugin, TabConstants.BSTATS_PLUGIN_ID_BUKKIT);
         metrics.addCustomChart(new SimplePie(TabConstants.MetricsChart.UNLIMITED_NAME_TAG_MODE_ENABLED,
                 () -> TAB.getInstance().getFeatureManager().isFeatureEnabled(TabConstants.Feature.UNLIMITED_NAME_TAGS) ? "Yes" : "No"));
         metrics.addCustomChart(new SimplePie(TabConstants.MetricsChart.PERMISSION_SYSTEM,
                 () -> TAB.getInstance().getGroupManager().getPermissionPlugin()));
         metrics.addCustomChart(new SimplePie(TabConstants.MetricsChart.SERVER_VERSION,
-                () -> "1." + TAB.getInstance().getServerVersion().getMinorVersion() + ".x"));
-    }
-
-    @Override
-    @NotNull
-    public ProtocolVersion getServerVersion() {
-        return ProtocolVersion.fromFriendlyName(Bukkit.getBukkitVersion().split("-")[0]);
+                () -> "1." + BukkitReflection.getMinorVersion() + ".x"));
     }
 
     @Override
     @NotNull
     public File getDataFolder() {
         return plugin.getDataFolder();
-    }
-
-    @Override
-    public Object toComponent(@NotNull IChatBaseComponent component, @NotNull ProtocolVersion version) {
-        return NMSStorage.getInstance().componentCache.get(component, version);
     }
 
     @Override
@@ -267,11 +303,71 @@ public class BukkitPlatform implements BackendPlatform<Object> {
 
     @Override
     public double getMSPT() {
-       if (paperMspt) return Bukkit.getAverageTickTime();
-       return -1;
+        if (paperMspt) return Bukkit.getAverageTickTime();
+        return -1;
     }
 
+    /**
+     * Runs task in the main thread for given entity.
+     *
+     * @param   entity
+     *          Entity's main thread
+     * @param   task
+     *          Task to run
+     */
+    public void runSync(@NotNull Entity entity, @NotNull Runnable task) {
+        Bukkit.getScheduler().runTask(plugin, task);
+    }
+
+    /**
+     * Runs an entity task that may or may not need to use its main thread.
+     *
+     * @param   entity
+     *          Entity to work with
+     * @param   task
+     *          Task to run
+     */
     public void runEntityTask(@NotNull Entity entity, @NotNull Runnable task) {
         task.run();
+    }
+
+    @Override
+    public boolean canSee(@NotNull TabPlayer viewer, @NotNull TabPlayer target) {
+        if (BackendPlatform.super.canSee(viewer, target)) return true;
+        return ((BukkitTabPlayer)viewer).getPlayer().canSee(((BukkitTabPlayer)target).getPlayer());
+    }
+
+    /**
+     * Converts component to legacy string using bukkit RGB format if supported by both server and client.
+     * If not, closest legacy color is used instead.
+     *
+     * @param   component
+     *          Component to convert
+     * @param   rgbClient
+     *          Whether client accepts RGB colors or not.
+     * @return  Converted string using bukkit color format
+     */
+    @NotNull
+    public String toBukkitFormat(@NotNull TabComponent component, boolean rgbClient) {
+        if (component instanceof SimpleComponent) return component.toLegacyText();
+        StructuredComponent iComponent = (StructuredComponent) component;
+        StringBuilder sb = new StringBuilder();
+        if (iComponent.getModifier().getColor() != null) {
+            if (serverVersion.supportsRGB() && rgbClient) {
+                String hexCode = iComponent.getModifier().getColor().getHexCode();
+                char c = EnumChatFormat.COLOR_CHAR;
+                sb.append(c).append("x").append(c).append(hexCode.charAt(0)).append(c).append(hexCode.charAt(1))
+                        .append(c).append(hexCode.charAt(2)).append(c).append(hexCode.charAt(3))
+                        .append(c).append(hexCode.charAt(4)).append(c).append(hexCode.charAt(5));
+            } else {
+                sb.append(iComponent.getModifier().getColor().getLegacyColor());
+            }
+        }
+        sb.append(iComponent.getModifier().getMagicCodes());
+        sb.append(iComponent.getText());
+        for (StructuredComponent extra : iComponent.getExtra()) {
+            sb.append(toBukkitFormat(extra, rgbClient));
+        }
+        return sb.toString();
     }
 }

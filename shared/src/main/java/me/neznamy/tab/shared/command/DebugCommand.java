@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import me.neznamy.tab.shared.features.nametags.NameTag;
 import me.neznamy.tab.shared.features.nametags.unlimited.NameTagX;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
@@ -42,7 +41,7 @@ public class DebugCommand extends SubCommand {
             }
         }
         if (analyzed == null && sender != null) {
-            analyzed = TAB.getInstance().getPlayer(sender.getUniqueId());
+            analyzed = sender;
         }
         debug(sender, analyzed);
     }
@@ -75,7 +74,9 @@ public class DebugCommand extends SubCommand {
         }
         sendMessage(sender, "&ePlayer: &a" + analyzed.getName());
         if (analyzed instanceof ProxyTabPlayer) {
-            sendMessage(sender, "&eBridge connection: " + (((ProxyTabPlayer)analyzed).isBridgeConnected() ? "&aConnected" : "&cNot connected"));
+            char versionRequired = TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME.charAt(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME.length()-1);
+            sendMessage(sender, "&eBridge connection: " + (((ProxyTabPlayer)analyzed).isBridgeConnected() ?
+                    "&aConnected" : "&cNot connected (requires Bridge version " + versionRequired + ".x.x installed)"));
         }
         sendMessage(sender, getGroup(analyzed));
         sendMessage(sender, getTeamName(analyzed));
@@ -92,7 +93,7 @@ public class DebugCommand extends SubCommand {
             sendMessage(sender, "&acustomtabname: &cDisabled");
         }
         if (tab.getNameTagManager() != null) {
-            boolean disabledNametags = ((NameTag) tab.getNameTagManager()).getDisableChecker().isDisabledPlayer(analyzed);
+            boolean disabledNametags = tab.getNameTagManager().getDisableChecker().isDisabledPlayer(analyzed);
             showProperty(sender, analyzed, TabConstants.Property.TAGPREFIX, disabledNametags);
             showProperty(sender, analyzed, TabConstants.Property.TAGSUFFIX, disabledNametags);
             NameTagX nameTagX = TAB.getInstance().getFeatureManager().getFeature(TabConstants.Feature.UNLIMITED_NAME_TAGS);
@@ -161,7 +162,7 @@ public class DebugCommand extends SubCommand {
         Sorting sorting = TAB.getInstance().getFeatureManager().getFeature(TabConstants.Feature.SORTING);
         if (sorting == null) return "";
         if (TAB.getInstance().getNameTagManager() != null &&
-                ((NameTag) TAB.getInstance().getNameTagManager()).getDisableChecker().isDisabledPlayer(analyzed)) {
+                TAB.getInstance().getNameTagManager().getDisableChecker().isDisabledPlayer(analyzed)) {
             return "&eTeam name: &cSorting is disabled in player's world/server";
         }
         return "&eTeam name: &a" + (TAB.getInstance().getFeatureManager().isFeatureEnabled(TabConstants.Feature.LAYOUT)
@@ -179,7 +180,7 @@ public class DebugCommand extends SubCommand {
         Sorting sorting = TAB.getInstance().getFeatureManager().getFeature(TabConstants.Feature.SORTING);
         if (sorting == null) return "";
         if (TAB.getInstance().getNameTagManager() != null &&
-                ((NameTag) TAB.getInstance().getNameTagManager()).getDisableChecker().isDisabledPlayer(analyzed)) {
+                TAB.getInstance().getNameTagManager().getDisableChecker().isDisabledPlayer(analyzed)) {
             return "";
         }
         return "&eSorting note: &r" + sorting.getTeamNameNote(analyzed);

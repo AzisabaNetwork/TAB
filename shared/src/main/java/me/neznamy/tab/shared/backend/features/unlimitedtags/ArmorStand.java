@@ -2,9 +2,10 @@ package me.neznamy.tab.shared.backend.features.unlimitedtags;
 
 import lombok.Getter;
 import me.neznamy.tab.shared.Property;
+import me.neznamy.tab.shared.chat.StructuredComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.backend.BackendTabPlayer;
 import me.neznamy.tab.shared.backend.EntityData;
 import me.neznamy.tab.shared.backend.Location;
@@ -63,12 +64,12 @@ public class ArmorStand {
      */
     public ArmorStand(@NotNull BackendNameTagX feature, @NotNull BackendArmorStandManager asm, @NotNull TabPlayer owner,
                       @NotNull String propertyName, double yOffset, boolean staticOffset) {
-        this.manager = feature;
+        manager = feature;
         this.asm = asm;
         this.owner = owner;
         this.staticOffset = staticOffset;
-        this.offset = yOffset;
-        this.property = owner.getProperty(propertyName);
+        offset = yOffset;
+        property = owner.getProperty(propertyName);
         visible = calculateVisibility();
         visibleWPotion = visible && !owner.hasInvisibilityPotion();
     }
@@ -123,7 +124,7 @@ public class ArmorStand {
     public boolean calculateVisibility() {
         if (manager.isArmorStandsAlwaysVisible()) return true;
         if (owner.isDisguised() || manager.isOnBoat(owner)) return false;
-        return owner.getGamemode() != 3 && !manager.hasHiddenNameTag(owner) && property.get().length() > 0 &&
+        return owner.getGamemode() != 3 && !manager.hasHiddenNameTag(owner) && !property.get().isEmpty() &&
                 !manager.getUnlimitedDisableChecker().isDisabledPlayer(owner);
     }
 
@@ -136,10 +137,12 @@ public class ArmorStand {
      * @return  {@code true} if it's empty, {@code false} if not
      */
     protected boolean isNameVisiblyEmpty(@NotNull String displayName) {
-        if (displayName.length() == 0) return true;
+        if (displayName.isEmpty()) return true;
         String rawText = displayName.contains(" ") ? displayName.replace(" ", "") : displayName;
         if (!rawText.startsWith(EnumChatFormat.COLOR_STRING) && !rawText.startsWith("&") && !rawText.startsWith("#")) return false;
-        return IChatBaseComponent.fromColoredText(rawText).toRawText().length() == 0;
+        TabComponent component = TabComponent.fromColoredText(rawText);
+        if (component instanceof StructuredComponent) return ((StructuredComponent) component).toRawText().isEmpty();
+        return component.toLegacyText().isEmpty();
     }
 
     /**
@@ -154,7 +157,7 @@ public class ArmorStand {
      * @return  Y to add to player's location
      */
     public double getYAdd(boolean sleeping, boolean sneaking, @NotNull TabPlayer viewer) {
-        double y = getOffset();
+        double y = offset;
         if (!sleeping) {
             if (sneaking) {
                 if (viewer.getVersion().getMinorVersion() >= 15) {

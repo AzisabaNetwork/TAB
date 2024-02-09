@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
+import me.neznamy.tab.shared.chat.EnumChatFormat;
 import me.neznamy.tab.shared.features.nametags.NameTag;
 import me.neznamy.tab.shared.features.redis.RedisPlayer;
 import me.neznamy.tab.shared.features.redis.RedisSupport;
@@ -39,7 +40,7 @@ public class RedisTeams extends RedisFeature {
         for (RedisPlayer redis : redisSupport.getRedisPlayers().values()) {
             player.getScoreboard().registerTeam(teamNames.get(redis), prefixes.get(redis), suffixes.get(redis),
                         nameVisibilities.get(redis), CollisionRule.ALWAYS,
-                        Collections.singletonList(redis.getNickname()), 2);
+                        Collections.singletonList(redis.getNickname()), 2, EnumChatFormat.lastColorsOf(prefixes.get(redis)));
         }
     }
 
@@ -48,18 +49,8 @@ public class RedisTeams extends RedisFeature {
         for (TabPlayer viewer : TAB.getInstance().getOnlinePlayers()) {
             viewer.getScoreboard().registerTeam(teamNames.get(player), prefixes.get(player), suffixes.get(player),
                     nameVisibilities.get(player), CollisionRule.ALWAYS,
-                    Collections.singletonList(player.getNickname()), 2);
+                    Collections.singletonList(player.getNickname()), 2, EnumChatFormat.lastColorsOf(prefixes.get(player)));
         }
-    }
-
-    @Override
-    public void onServerSwitch(@NotNull TabPlayer player) {
-        onJoin(player);
-    }
-
-    @Override
-    public void onServerSwitch(@NotNull RedisPlayer player) {
-        // No action is needed
     }
 
     @Override
@@ -85,6 +76,11 @@ public class RedisTeams extends RedisFeature {
         prefixes.put(player, in.readUTF());
         suffixes.put(player, in.readUTF());
         nameVisibilities.put(player, NameVisibility.getByName(in.readUTF()));
+    }
+
+    @Override
+    public void onLoginPacket(@NotNull TabPlayer player) {
+        onJoin(player);
     }
 
     private @NotNull String checkTeamName(@NotNull RedisPlayer player, @NotNull String currentName15, int id) {
@@ -144,12 +140,12 @@ public class RedisTeams extends RedisFeature {
                 for (TabPlayer viewer : TAB.getInstance().getOnlinePlayers()) {
                     viewer.getScoreboard().unregisterTeam(oldTeamName);
                     viewer.getScoreboard().registerTeam(newTeamName, prefix, suffix, nameVisibility,
-                            CollisionRule.ALWAYS, Collections.singletonList(target.getNickname()), 2);
+                            CollisionRule.ALWAYS, Collections.singletonList(target.getNickname()), 2, EnumChatFormat.lastColorsOf(prefix));
                 }
             } else {
                 for (TabPlayer viewer : TAB.getInstance().getOnlinePlayers()) {
                     viewer.getScoreboard().updateTeam(oldTeamName, prefix, suffix, nameVisibility,
-                            CollisionRule.ALWAYS, 2);
+                            CollisionRule.ALWAYS, 2, EnumChatFormat.lastColorsOf(prefix));
                 }
             }
         }

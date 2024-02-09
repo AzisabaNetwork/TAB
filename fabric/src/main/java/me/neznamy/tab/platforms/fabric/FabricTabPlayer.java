@@ -2,12 +2,14 @@ package me.neznamy.tab.platforms.fabric;
 
 import com.mojang.authlib.properties.Property;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import me.neznamy.tab.shared.backend.BackendTabPlayer;
 import me.neznamy.tab.shared.backend.entityview.EntityView;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.Scoreboard;
 import me.neznamy.tab.shared.platform.TabList;
-import me.neznamy.tab.shared.platform.bossbar.BossBar;
+import me.neznamy.tab.shared.platform.BossBar;
+import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.NotNull;
@@ -15,6 +17,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 
+/**
+ * TabPlayer implementation for Fabric.
+ */
 @Getter
 public class FabricTabPlayer extends BackendTabPlayer {
 
@@ -30,23 +35,33 @@ public class FabricTabPlayer extends BackendTabPlayer {
     @NotNull
     private final EntityView entityView = new FabricEntityView(this);
 
+    /**
+     * Constructs new instance with given parameters.
+     *
+     * @param   platform
+     *          Server platform
+     * @param   player
+     *          Platform's player object
+     */
     public FabricTabPlayer(@NotNull FabricPlatform platform, @NotNull ServerPlayer player) {
-        super(platform, player, player.getUUID(), player.getGameProfile().getName(), player.level().dimension().location().toString());
+        super(platform, player, player.getUUID(), player.getGameProfile().getName(),
+                FabricMultiVersion.getLevelName.apply(FabricMultiVersion.getLevel.apply(player)), platform.getServerVersion().getNetworkId());
     }
 
     @Override
     public boolean hasPermission(@NotNull String permission) {
-        return FabricTAB.hasPermission(getPlayer().createCommandSourceStack(), permission);
+        return getPlatform().hasPermission(getPlayer().createCommandSourceStack(), permission);
     }
 
     @Override
     public int getPing() {
-        return getPlayer().connection.latency();
+        return FabricMultiVersion.getPing.apply(getPlayer());
     }
 
     @Override
-    public void sendMessage(@NotNull IChatBaseComponent message) {
-        getPlayer().sendSystemMessage(getPlatform().toComponent(message, getVersion()));
+    @SneakyThrows
+    public void sendMessage(@NotNull TabComponent message) {
+        FabricMultiVersion.sendMessage.accept(getPlayer(), getPlatform().toComponent(message, getVersion()));
     }
 
     @Override
@@ -64,8 +79,7 @@ public class FabricTabPlayer extends BackendTabPlayer {
     public TabList.Skin getSkin() {
         Collection<Property> properties = getPlayer().getGameProfile().getProperties().get(TabList.TEXTURES_PROPERTY);
         if (properties.isEmpty()) return null; // Offline mode
-        Property skinProperty = properties.iterator().next();
-        return new TabList.Skin(skinProperty.value(), skinProperty.signature());
+        return FabricMultiVersion.propertyToSkin.apply(properties.iterator().next());
     }
 
     @Override
@@ -76,7 +90,7 @@ public class FabricTabPlayer extends BackendTabPlayer {
 
     @Override
     public boolean isOnline() {
-        return true;
+        return PlayerLookup.all(getPlatform().getServer()).contains(getPlayer());
     }
 
     @Override
@@ -102,7 +116,7 @@ public class FabricTabPlayer extends BackendTabPlayer {
     @Override
     @NotNull
     public String getDisplayName() {
-        return getPlayer().getDisplayName().getString(); // Will make it work properly if someone asks
+        return getPlayer().getGameProfile().getName(); // Will make it work properly if someone asks
     }
 
     /**

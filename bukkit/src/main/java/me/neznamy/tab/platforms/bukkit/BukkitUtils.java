@@ -3,12 +3,12 @@ package me.neznamy.tab.platforms.bukkit;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
-import me.neznamy.tab.platforms.bukkit.nms.BukkitReflection;
+import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 
@@ -17,6 +17,11 @@ import java.util.Collection;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class BukkitUtils {
+
+    /** Whether compatibility exceptions should be printed or not, enabling when adding support for new versions */
+    private static final boolean PRINT_EXCEPTIONS = false;
+
+    private static boolean compatibilityIssue;
 
     /**
      * Returns online players from Bukkit API. This requires reflection, as return type changed in 1.8,
@@ -39,38 +44,45 @@ public class BukkitUtils {
     }
 
     /**
-     * Converts component to legacy string using bukkit RGB format if supported by both server and client.
-     * If not, closest legacy color is used instead.
+     * Prints a console warn that some compatibility issue was found.
      *
-     * @param   component
-     *          Component to convert
-     * @param   rgbClient
-     *          Whether client accepts RGB colors or not.
-     * @return  Converted string using bukkit color format
+     * @param   exception
+     *          Exception thrown when initializing fields, if applicable
+     * @param   failedCheck
+     *          Check that failed
+     * @param   fallback
+     *          Fallback implementation, if available
+     * @param   missingFeatures
+     *          Features that will be broken because of the incompatibility
      */
-    @NotNull
-    public static String toBukkitFormat(@NotNull IChatBaseComponent component, boolean rgbClient) {
+    public static void compatibilityError(@NotNull Exception exception, @NotNull String failedCheck,
+                                          @Nullable String fallback, @NotNull String... missingFeatures) {
         StringBuilder sb = new StringBuilder();
-        if (component.getModifier().getColor() != null) {
-            if (BukkitReflection.getMinorVersion() >= 16 && rgbClient) {
-                String hexCode = component.getModifier().getColor().getHexCode();
-                char c = EnumChatFormat.COLOR_CHAR;
-                sb.append(c).append("x").append(c).append(hexCode.charAt(0)).append(c).append(hexCode.charAt(1))
-                        .append(c).append(hexCode.charAt(2)).append(c).append(hexCode.charAt(3))
-                        .append(c).append(hexCode.charAt(4)).append(c).append(hexCode.charAt(5));
-            } else {
-                sb.append(component.getModifier().getColor().getLegacyColor().getFormat());
-            }
+        sb.append(EnumChatFormat.RED);
+        sb.append("[TAB] Failed to initialize minecraft fields for ");
+        sb.append(failedCheck);
+        sb.append(" due to a compatibility error. ");
+        if (fallback != null) {
+            sb.append("Using fallback solution using ").append(fallback).append(". ");
+        } else {
+            sb.append("No fallback solution was found. ");
         }
-        if (component.getModifier().isBold()) sb.append(EnumChatFormat.BOLD.getFormat());
-        if (component.getModifier().isStrikethrough()) sb.append(EnumChatFormat.STRIKETHROUGH.getFormat());
-        if (component.getModifier().isItalic()) sb.append(EnumChatFormat.ITALIC.getFormat());
-        if (component.getModifier().isObfuscated()) sb.append(EnumChatFormat.OBFUSCATED.getFormat());
-        if (component.getModifier().isUnderlined()) sb.append(EnumChatFormat.UNDERLINE.getFormat());
-        if (component.getText() != null) sb.append(component.getText());
-        for (IChatBaseComponent extra : component.getExtra()) {
-            sb.append(toBukkitFormat(extra, rgbClient));
+        sb.append("This will result in: ");
+        for (int i=0; i<missingFeatures.length; i++) {
+            sb.append("\n").append("#").append(i + 1).append(": ").append(missingFeatures[i]);
         }
-        return sb.toString();
+        Bukkit.getConsoleSender().sendMessage(sb.toString());
+        if (PRINT_EXCEPTIONS) exception.printStackTrace();
+        compatibilityIssue = true;
+    }
+
+    /**
+     * Sends a message asking user to update the plugin if some compatibility issue was found.
+     */
+    public static void sendCompatibilityMessage() {
+        if (!compatibilityIssue) return;
+        Bukkit.getConsoleSender().sendMessage(EnumChatFormat.RED + "[TAB] Please update the plugin to " +
+                "a version with native support for your server version for optimal experience. This plugin version " +
+                "was made for " + ProtocolVersion.V1_5.getFriendlyName() + " - " + ProtocolVersion.LATEST_KNOWN_VERSION.getFriendlyName() + ".");
     }
 }

@@ -19,12 +19,19 @@ public class TabConstants {
 
     public static final String NO_GROUP = "NONE";
     public static final String DEFAULT_GROUP = "_DEFAULT_";
-    public static final String PLUGIN_MESSAGE_CHANNEL_NAME = "tab:bridge-4";
+    public static final String PLUGIN_MESSAGE_CHANNEL_NAME = "tab:bridge-5";
     public static final String REDIS_CHANNEL_NAME = PLUGIN_NAME;
     public static final String PIPELINE_HANDLER_NAME = PLUGIN_NAME;
 
     public static final String COMMAND_BACKEND = "tab";
     public static final String COMMAND_PROXY = "btab";
+
+    public static final int BSTATS_PLUGIN_ID_BUKKIT = 5304;
+    public static final int BSTATS_PLUGIN_ID_BUNGEE = 10535;
+    public static final int BSTATS_PLUGIN_ID_SPONGE = 17732;
+    public static final int BSTATS_PLUGIN_ID_VELOCITY = 10533;
+
+    public static final int MAX_LOG_SIZE = 1000000;
 
     /**
      * Feature sub-category explaining why / when a certain feature
@@ -33,6 +40,7 @@ public class TabConstants {
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static class CpuUsageCategory {
 
+        // Events
         public static final String PLAYER_JOIN = "Player Join";
         public static final String PLAYER_QUIT = "Player Quit";
         public static final String WORLD_SWITCH = "World Switch";
@@ -40,23 +48,32 @@ public class TabConstants {
         public static final String COMMAND_PREPROCESS = "Command Preprocess";
         public static final String PLAYER_SNEAK = "Player Sneak";
         public static final String PLAYER_RESPAWN = "Player Respawn";
-        public static final String PLUGIN_MESSAGE = "PluginMessageEvent";
-        public static final String REDIS_BUNGEE_MESSAGE = "PubSubMessageEvent";
-        public static final String VANISH_CHANGE = "Vanish status change";
+        public static final String PLUGIN_MESSAGE = "Plugin Message processing";
+        public static final String REDIS_BUNGEE_MESSAGE = "Redis Message processing";
+
+        // Packets
         public static final String ANTI_OVERRIDE = "Anti override";
-
+        public static final String PING_CHANGE = "Processing ping change";
+        public static final String NICK_PLUGIN_COMPATIBILITY = "Compatibility with nick plugins";
         public static final String BYTE_BUF = "ByteBuf";
-        public static final String PACKET_PLAYER_INFO = "PacketPlayOutPlayerInfo";
-        public static final String PACKET_ENTITY_MOVE = "PacketPlayOutEntity";
-        public static final String PACKET_ENTITY_MOVE_PASSENGER = "PacketPlayOutEntity (passenger)";
-        public static final String PACKET_ENTITY_SPAWN = "PacketPlayOutNamedEntitySpawn";
-        public static final String PACKET_ENTITY_DESTROY = "PacketPlayOutEntityDestroy";
+        public static final String PACKET_PLAYER_MOVE = "Processing player move";
+        public static final String PACKET_ENTITY_MOVE_PASSENGER = "Processing entity move (with player passenger)";
+        public static final String PACKET_ENTITY_SPAWN = "Processing entity spawn";
+        public static final String PACKET_ENTITY_DESTROY = "Processing entity destroy";
         public static final String RAW_PACKET_OUT = "Packet reading (out)";
-
-        public static final String PLACEHOLDER_REFRESHING = "Refreshing placeholders";
-
-        public static final String REFRESHING_NAME_TAG_VISIBILITY = "Refreshing NameTag visibility";
+        public static final String PACKET_LOGIN = "Login packet";
         public static final String SCOREBOARD_PACKET_CHECK = "Checking for other plugins";
+
+        // Placeholders
+        public static final String PLACEHOLDER_REFRESH_INIT = "Phase #1 - Preparing for request";
+        public static final String PLACEHOLDER_REQUEST = "Phase #2 - Requesting new values";
+        public static final String PLACEHOLDER_SAVE = "Phase #3 - Saving results";
+
+        // Other
+        public static final String GAMEMODE_CHANGE = "Processing gamemode change";
+        public static final String TABLIST_CLEAR = "TabList entry re-add";
+        public static final String VANISH_CHANGE = "Vanish status change";
+        public static final String REFRESHING_NAME_TAG_VISIBILITY = "Refreshing NameTag visibility";
         public static final String PROCESSING_PLAYER_MOVEMENT = "Processing player movement";
         public static final String TELEPORTING_WITHER = "Teleporting wither";
     }
@@ -78,7 +95,6 @@ public class TabConstants {
         public static final String COMMAND_AUTOCOMPLETE             = "tab.tabcomplete";
         public static final String COMMAND_DATA_REMOVE              = "tab.remove";
         public static final String COMMAND_PROPERTY_CHANGE_PREFIX   = "tab.change.";
-        public static final String COMMAND_WIDTH                    = "tab.width";
 
         public static final String COMMAND_BOSSBAR_ANNOUNCE         = "tab.announce.bar";
         public static final String COMMAND_BOSSBAR_TOGGLE           = "tab.bossbar.toggle";
@@ -127,41 +143,6 @@ public class TabConstants {
         public static final String ABOVENAME = "abovename";
         public static final String NAMETAG = "nametag";
         public static final String BELOWNAME = "belowname";
-
-        public static final String SCOREBOARD_TITLE = "scoreboard-title";
-
-        public static final String BELOWNAME_NUMBER = "belowname-number";
-        public static final String BELOWNAME_TEXT = "belowname-text";
-
-        public static final String YELLOW_NUMBER = "yellow-number";
-
-        public static String bossbarTitle(String name) {
-            return "bossbar-title-" + name;
-        }
-
-        public static String bossbarProgress(String name) {
-            return "bossbar-progress-" + name;
-        }
-
-        public static String bossbarColor(String name) {
-            return "bossbar-color-" + name;
-        }
-
-        public static String bossbarStyle(String name) {
-            return "bossbar-style-" + name;
-        }
-
-        public static String scoreboardPrefix(String scoreboard, int lineNumber) {
-            return scoreboard + "-" + lineNumber + "-prefix";
-        }
-
-        public static String scoreboardName(String scoreboard, int lineNumber) {
-            return scoreboard + "-" + lineNumber + "-name";
-        }
-
-        public static String scoreboardSuffix(String scoreboard, int lineNumber) {
-            return scoreboard + "-" + lineNumber + "-suffix";
-        }
     }
 
     /**
@@ -211,6 +192,10 @@ public class TabConstants {
         }
 
         public static String scoreboardLine(String scoreboard, int index) {
+            return "scoreboard-line-" + scoreboard + "-" + index;
+        }
+
+        public static String scoreboardScore(String scoreboard, int index) {
             return "scoreboard-score-" + scoreboard + "-" + index;
         }
 
@@ -270,6 +255,7 @@ public class TabConstants {
         public static final String LUCKPERMS_SUFFIX = "%luckperms-suffix%";
         public static final String COUNTDOWN = "%countdown%";
         public static final String GAMEMODE = "%gamemode%";
+        public static final String BEDROCK = "%bedrock%";
 
         // Placeholders for internal use
         public static final String COLLISION = "%collision%";

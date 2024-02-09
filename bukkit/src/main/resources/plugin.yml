@@ -7,7 +7,7 @@ load: POSTWORLD
 author: @author@
 website: "@website@"
 depend: []
-softdepend: [PlaceholderAPI, LuckPerms, LibsDisguises, ViaVersion, ViaRewind, floodgate]
+softdepend: [PlaceholderAPI, LuckPerms, LibsDisguises, ViaVersion, ViaRewind, floodgate, Vault]
 loadbefore: []
 prefix: TAB
 libraries: []
@@ -48,9 +48,6 @@ permissions:
     default: op
   tab.change.*:
     description: Allows player to change property using command
-    default: op
-  tab.width:
-    description: Allows player to run /tab width
     default: op
   tab.announce.bar:
     description: Allows player to run /tab announce bar

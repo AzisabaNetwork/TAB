@@ -19,9 +19,9 @@ import java.util.function.BiFunction;
 public abstract class NameTagX extends NameTag implements UnlimitedNameTagManager {
 
     //config options
-    @Getter private final boolean disableOnBoats = TAB.getInstance().getConfiguration().getConfig().getBoolean("scoreboard-teams.unlimited-nametag-mode.disable-on-boats", true);
-    @Getter private final List<String> dynamicLines = new ArrayList<>(TAB.getInstance().getConfiguration().getConfig().getStringList("scoreboard-teams.unlimited-nametag-mode.dynamic-lines", Arrays.asList(TabConstants.Property.ABOVENAME, TabConstants.Property.NAMETAG, TabConstants.Property.BELOWNAME, "another")));
-    @Getter private final Map<String, Object> staticLines = TAB.getInstance().getConfiguration().getConfig().getConfigurationSection("scoreboard-teams.unlimited-nametag-mode.static-lines");
+    @Getter private final boolean disableOnBoats = config().getBoolean("scoreboard-teams.unlimited-nametag-mode.disable-on-boats", true);
+    @Getter private final List<String> dynamicLines = new ArrayList<>(config().getStringList("scoreboard-teams.unlimited-nametag-mode.dynamic-lines", Arrays.asList(TabConstants.Property.ABOVENAME, TabConstants.Property.NAMETAG, TabConstants.Property.BELOWNAME, "another")));
+    @Getter private final Map<String, Object> staticLines = config().getConfigurationSection("scoreboard-teams.unlimited-nametag-mode.static-lines");
     @Getter private final boolean armorStandsAlwaysVisible = TAB.getInstance().getConfiguration().getSecretOption("scoreboard-teams.unlimited-nametag-mode.always-visible", false);
 
     @Getter protected final String featureName = "Unlimited NameTags";
@@ -31,10 +31,10 @@ public abstract class NameTagX extends NameTag implements UnlimitedNameTagManage
     private final BiFunction<NameTagX, TabPlayer, ArmorStandManager> armorStandFunction;
     @Getter private final DisableChecker unlimitedDisableChecker;
 
-    public NameTagX(@NonNull BiFunction<NameTagX, TabPlayer, ArmorStandManager> armorStandFunction) {
+    protected NameTagX(@NonNull BiFunction<NameTagX, TabPlayer, ArmorStandManager> armorStandFunction) {
         this.armorStandFunction = armorStandFunction;
         Collections.reverse(dynamicLines);
-        Condition disableCondition = Condition.getCondition(TAB.getInstance().getConfig().getString("scoreboard-teams.unlimited-nametag-mode.disable-condition"));
+        Condition disableCondition = Condition.getCondition(config().getString("scoreboard-teams.unlimited-nametag-mode.disable-condition"));
         unlimitedDisableChecker = new DisableChecker(featureName, disableCondition, this::onUnlimitedDisableConditionChange);
         TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.UNLIMITED_NAME_TAGS + "-Condition", unlimitedDisableChecker);
     }
@@ -50,7 +50,7 @@ public abstract class NameTagX extends NameTag implements UnlimitedNameTagManage
     @Override
     public void load() {
         if (invisibleNameTags) {
-            TAB.getInstance().getMisconfigurationHelper().invisibleAndUnlimitedNameTagsAreMutuallyExclusive();
+            TAB.getInstance().getConfigHelper().startup().invisibleAndUnlimitedNameTagsAreMutuallyExclusive();
         }
         for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
             updateProperties(all);
@@ -87,7 +87,12 @@ public abstract class NameTagX extends NameTag implements UnlimitedNameTagManage
     public void unload() {
         super.unload();
         for (TabPlayer p : TAB.getInstance().getOnlinePlayers()) {
-            getArmorStandManager(p).destroy();
+            ArmorStandManager asm = getArmorStandManager(p);
+            if (asm != null) {
+                asm.destroy();
+            } else {
+                TAB.getInstance().getErrorManager().armorStandNull(p, "unload");
+            }
         }
     }
 

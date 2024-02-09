@@ -9,6 +9,7 @@ package me.neznamy.tab.shared.util;
  * @param   <C>
  *          Function return type
  */
+@FunctionalInterface
 public interface BiFunctionWithException<A, B, C> {
 
     /**
@@ -19,8 +20,8 @@ public interface BiFunctionWithException<A, B, C> {
      * @param   b
      *          Second argument
      * @return  Output from function
-     * @throws  ReflectiveOperationException
-     *          If reflective operation fails
+     * @throws  Exception
+     *          If operation fails
      */
-    C apply(A a, B b) throws ReflectiveOperationException;
+    C apply(A a, B b) throws Exception;
 }

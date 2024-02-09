@@ -3,11 +3,14 @@ package me.neznamy.tab.platforms.velocity;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.util.GameProfile;
 import lombok.Getter;
-import me.neznamy.tab.shared.platform.bossbar.AdventureBossBar;
-import me.neznamy.tab.shared.platform.bossbar.BossBar;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.TAB;
+import me.neznamy.tab.shared.chat.TabComponent;
+import me.neznamy.tab.shared.hook.AdventureHook;
+import me.neznamy.tab.shared.platform.impl.AdventureBossBar;
+import me.neznamy.tab.shared.platform.BossBar;
 import me.neznamy.tab.shared.platform.TabList;
 import me.neznamy.tab.shared.platform.Scoreboard;
+import me.neznamy.tab.shared.platform.impl.BridgeScoreboard;
 import me.neznamy.tab.shared.proxy.ProxyTabPlayer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -22,7 +25,7 @@ public class VelocityTabPlayer extends ProxyTabPlayer {
 
     /** Player's scoreboard */
     @NotNull
-    private final Scoreboard<VelocityTabPlayer> scoreboard = new VelocityScoreboard(this);
+    private final Scoreboard<ProxyTabPlayer> scoreboard = new BridgeScoreboard(this);
 
     /** Player's tab list */
     @NotNull
@@ -56,15 +59,15 @@ public class VelocityTabPlayer extends ProxyTabPlayer {
     }
 
     @Override
-    public void sendMessage(@NotNull IChatBaseComponent message) {
-        getPlayer().sendMessage(getPlatform().toComponent(message, getVersion()));
+    public void sendMessage(@NotNull TabComponent message) {
+        getPlayer().sendMessage(AdventureHook.toAdventureComponent(message, getVersion()));
     }
 
     @Override
     @Nullable
     public TabList.Skin getSkin() {
         List<GameProfile.Property> properties = getPlayer().getGameProfile().getProperties();
-        if (properties.size() == 0) return null; //Offline mode
+        if (properties.isEmpty()) return null; //Offline mode
         return new TabList.Skin(properties.get(0).getValue(), properties.get(0).getSignature());
     }
     
@@ -89,11 +92,11 @@ public class VelocityTabPlayer extends ProxyTabPlayer {
         try {
             getPlayer().getCurrentServer().ifPresentOrElse(
                     server -> server.sendPluginMessage(getPlatform().getMCI(), message),
-                    () -> errorNoServer(message)
+                    () -> TAB.getInstance().getErrorManager().noServerPluginMessage(this, message)
             );
         } catch (IllegalStateException VelocityBeingVelocityException) {
             // java.lang.IllegalStateException: Not connected to server!
-            errorNoServer(message);
+            TAB.getInstance().getErrorManager().noServerPluginMessage(this, message);
         }
     }
 }

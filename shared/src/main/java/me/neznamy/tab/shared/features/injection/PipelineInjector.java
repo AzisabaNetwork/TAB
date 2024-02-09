@@ -14,17 +14,13 @@ import org.jetbrains.annotations.NotNull;
  * TabList names - anti-override
  * NameTags - anti-override
  * Scoreboard - disabling tab's scoreboard to prevent conflict
- * SpectatorFix - to change game mode to something else than spectator
- * PetFix - to remove owner field from entity data
  * PingSpoof - full feature functionality
  * Unlimited name tags - replacement for bukkit events with much better accuracy and reliability
+ * NickCompatibility - Detect name changes from other plugins
  */
 public abstract class PipelineInjector extends TabFeature implements JoinListener, Loadable, UnLoadable {
 
     @Getter private final String featureName = "Pipeline injection";
-
-    //preventing spam when packet is sent to everyone
-    private String lastTeamOverrideMessage;
 
     //anti-override rules
     protected boolean antiOverrideTeams;
@@ -36,10 +32,10 @@ public abstract class PipelineInjector extends TabFeature implements JoinListene
 
     @Override
     public void load() {
-        antiOverrideTeams = TAB.getInstance().getConfig().getBoolean("scoreboard-teams.enabled", true) &&
-                TAB.getInstance().getConfig().getBoolean("scoreboard-teams.anti-override", true);
-        boolean respectOtherScoreboardPlugins = TAB.getInstance().getConfig().getBoolean("scoreboard.enabled", false) &&
-                TAB.getInstance().getConfig().getBoolean("scoreboard.respect-other-plugins", true);
+        antiOverrideTeams = config().getBoolean("scoreboard-teams.enabled", true) &&
+                config().getBoolean("scoreboard-teams.anti-override", true);
+        boolean respectOtherScoreboardPlugins = config().getBoolean("scoreboard.enabled", false) &&
+                config().getBoolean("scoreboard.respect-other-plugins", true);
         byteBufDeserialization = antiOverrideTeams || respectOtherScoreboardPlugins;
         for (TabPlayer p : TAB.getInstance().getOnlinePlayers()) {
             inject(p);
@@ -56,14 +52,5 @@ public abstract class PipelineInjector extends TabFeature implements JoinListene
     @Override
     public void onJoin(@NotNull TabPlayer connectedPlayer) {
         inject(connectedPlayer);
-    }
-
-    protected void logTeamOverride(@NotNull String team, @NotNull String player, @NotNull String expectedTeam) {
-        String message = "Something just tried to add player " + player + " into team " + team + " (expected team: " + expectedTeam + ")";
-        //not logging the same message for every online player who received the packet
-        if (!message.equals(lastTeamOverrideMessage)) {
-            lastTeamOverrideMessage = message;
-            TAB.getInstance().getErrorManager().printError(message, null, false, TAB.getInstance().getErrorManager().getAntiOverrideLog());
-        }
     }
 }

@@ -1,9 +1,9 @@
 package me.neznamy.tab.shared.config;
 
-import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.EnumChatFormat;
+import me.neznamy.tab.shared.chat.SimpleComponent;
 import me.neznamy.tab.shared.config.file.ConfigurationFile;
 import me.neznamy.tab.shared.config.file.YamlConfigurationFile;
 import org.jetbrains.annotations.NotNull;
@@ -25,7 +25,7 @@ public class Converter {
 
     public void convert2810to290(@NotNull ConfigurationFile animations) {
         if (animations.getValues().size() == 1 && animations.getValues().containsKey("animations")) {
-            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 2.8.10 to 2.9.0"));
+            TAB.getInstance().getPlatform().logInfo(new SimpleComponent(EnumChatFormat.YELLOW + "Performing configuration conversion from 2.8.10 to 2.9.0"));
             animations.setValues(animations.getConfigurationSection("animations"));
             animations.save();
         }
@@ -42,7 +42,7 @@ public class Converter {
      */
     public void convert292to300(@NotNull ConfigurationFile currentConfig) throws IOException {
         if (!currentConfig.hasConfigOption("change-nametag-prefix-suffix")) return;
-        TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 2.9.2 to 3.0.0"));
+        TAB.getInstance().getPlatform().logInfo(new SimpleComponent(EnumChatFormat.YELLOW + "Performing configuration conversion from 2.9.2 to 3.0.0"));
 
         File folder = TAB.getInstance().getDataFolder();
         moveOldFiles();
@@ -65,7 +65,7 @@ public class Converter {
         ConfigurationFile newConfig = new YamlConfigurationFile(null, new File(folder, "config.yml"));
 
         convertHeaderFooter(oldConfig, newConfig);
-        convertTabListFormatting(oldConfig, newConfig, premiumConfig);
+        convertTabListFormatting(oldConfig, newConfig);
         convertTeamOptions(oldConfig, newConfig, premiumConfig);
         convertYellowNumber(oldConfig, newConfig);
         convertBelowName(oldConfig, newConfig);
@@ -103,7 +103,7 @@ public class Converter {
         newConfig.set("scoreboard-teams.anti-override", oldConfig.getBoolean("anti-override.scoreboard-teams", true));
         newConfig.set("scoreboard-teams.enable-collision", oldConfig.getBoolean("enable-collision", true));
         newConfig.set("scoreboard-teams.disable-in-worlds", oldConfig.getStringList("disable-features-in-worlds.nametag", Collections.singletonList("disabledworld")));
-        if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY) {
+        if (TAB.getInstance().getPlatform().isProxy()) {
             newConfig.set("scoreboard-teams.disable-in-servers", oldConfig.getStringList("disable-features-in-servers.nametag", Collections.singletonList("disabledserver")));
         } else {
             newConfig.set("scoreboard-teams.unlimited-nametag-mode.enabled", oldConfig.getBoolean("unlimited-nametag-prefix-suffix-mode.enabled", false));
@@ -151,33 +151,26 @@ public class Converter {
         newConfig.set("scoreboard-teams.sorting-types", sortingTypes);
     }
 
-    private void convertTabListFormatting(@NotNull ConfigurationFile oldConfig, @NotNull ConfigurationFile newConfig, @Nullable ConfigurationFile premiumConfig) {
+    private void convertTabListFormatting(@NotNull ConfigurationFile oldConfig, @NotNull ConfigurationFile newConfig) {
         newConfig.set("tablist-name-formatting.enabled", oldConfig.getBoolean("change-tablist-prefix-suffix", true));
         newConfig.set("tablist-name-formatting.anti-override", oldConfig.getBoolean("anti-override.tablist-names", true));
         newConfig.set("tablist-name-formatting.disable-in-worlds", oldConfig.getStringList("disable-features-in-worlds.tablist-names", Collections.singletonList("disabledworld")));
-        if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY)
+        if (TAB.getInstance().getPlatform().isProxy())
             newConfig.set("tablist-name-formatting.disable-in-servers", oldConfig.getStringList("disable-features-in-servers.tablist-names", Collections.singletonList("disabledserver")));
-        if (premiumConfig != null) {
-            newConfig.set("tablist-name-formatting.align-tabsuffix-on-the-right", premiumConfig.getBoolean("align-tabsuffix-on-the-right", false));
-            newConfig.set("tablist-name-formatting.character-width-overrides", premiumConfig.getConfigurationSection("character-width-overrides"));
-        } else {
-            newConfig.set("tablist-name-formatting.align-tabsuffix-on-the-right", false);
-            newConfig.set("tablist-name-formatting.character-width-overrides", new HashMap<Integer, Integer>());
-        }
     }
 
     private void convertYellowNumber(@NotNull ConfigurationFile oldConfig, @NotNull ConfigurationFile newConfig) {
-        newConfig.set("yellow-number-in-tablist.enabled", !oldConfig.getString("yellow-number-in-tablist", TabConstants.Placeholder.PING).equals(""));
+        newConfig.set("yellow-number-in-tablist.enabled", !oldConfig.getString("yellow-number-in-tablist", TabConstants.Placeholder.PING).isEmpty());
         newConfig.set("yellow-number-in-tablist.value", oldConfig.getString("yellow-number-in-tablist", TabConstants.Placeholder.PING));
         newConfig.set("yellow-number-in-tablist.disable-in-worlds", oldConfig.getStringList("disable-features-in-worlds.yellow-number", Collections.singletonList("disabledworld")));
-        if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY)
+        if (TAB.getInstance().getPlatform().isProxy())
             newConfig.set("yellow-number-in-tablist.disable-in-servers", oldConfig.getStringList("disable-features-in-servers.yellow-number", Collections.singletonList("disabledserver")));
     }
 
     private void convertBelowName(@NotNull ConfigurationFile oldConfig, @NotNull ConfigurationFile newConfig) {
         newConfig.set("belowname-objective", oldConfig.getConfigurationSection("classic-vanilla-belowname"));
         newConfig.set("belowname-objective.disable-in-worlds", oldConfig.getStringList("disable-features-in-worlds.belowname", Collections.singletonList("disabledworld")));
-        if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY)
+        if (TAB.getInstance().getPlatform().isProxy())
             newConfig.set("belowname-objective.disable-in-servers", oldConfig.getStringList("disable-features-in-servers.belowname", Collections.singletonList("disabledserver")));
     }
 
@@ -189,7 +182,7 @@ public class Converter {
         Map<Object, Map<String, Object>> bars = bossBar.getConfigurationSection("bars");
         Map<String, List<Object>> perWorldBossBars = bossBar.getConfigurationSection("per-world");
         List<Object> activeBossBars = new ArrayList<>(bossBar.getStringList("default-bars", new ArrayList<>()));
-        String separator = TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY ? "server" : "world";
+        String separator = TAB.getInstance().getPlatform().isProxy() ? "server" : "world";
         for (Map.Entry<String, List<Object>> entry : perWorldBossBars.entrySet()) {
             for (Object bar : entry.getValue()) {
                 if (!bars.containsKey(bar)) continue;
@@ -210,7 +203,7 @@ public class Converter {
     }
 
     private void convertScoreboard(@NotNull ConfigurationFile newConfig, @NotNull ConfigurationFile premiumConfig) {
-        String separator = TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY ? "server" : "world";
+        String separator = TAB.getInstance().getPlatform().isProxy() ? "server" : "world";
         newConfig.set("scoreboard", premiumConfig.getObject("scoreboard"));
         newConfig.set("scoreboard.permission-required-to-toggle", null);
         Map<String, Map<String,Object>> scoreboards = premiumConfig.getConfigurationSection("scoreboards");
@@ -262,10 +255,10 @@ public class Converter {
         newConfig.set("header-footer.header", oldConfig.getStringList("header"));
         newConfig.set("header-footer.footer", oldConfig.getStringList("footer"));
         newConfig.set("header-footer.disable-in-worlds", oldConfig.getStringList("disable-features-in-worlds.header-footer", Collections.singletonList("disabledworld")));
-        if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY)
+        if (TAB.getInstance().getPlatform().isProxy())
             newConfig.set("header-footer.disable-in-servers", oldConfig.getStringList("disable-features-in-servers.header-footer", Collections.singletonList("disabledserver")));
 
-        String separator = TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY ? "server" : "world";
+        String separator = TAB.getInstance().getPlatform().isProxy() ? "server" : "world";
         Map<String, Map<String, Object>> perWorldSettings = oldConfig.getConfigurationSection("per-" + separator + "-settings");
         Map<String, Object> headerFooterMap = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, Object>> worldEntry : new LinkedHashMap<>(perWorldSettings).entrySet()) {
@@ -308,7 +301,7 @@ public class Converter {
         newConfig.set("mysql.username", "user");
         newConfig.set("mysql.password", "password");
 
-        if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY) {
+        if (TAB.getInstance().getPlatform().isProxy()) {
             newConfig.set("global-playerlist", oldConfig.getConfigurationSection("global-playerlist"));
             newConfig.set("global-playerlist.update-latency", false);
             newConfig.set("use-bukkit-permissions-manager", false);
@@ -321,7 +314,7 @@ public class Converter {
         groups.setValues(oldConfig.getConfigurationSection("Groups"));
         users.setValues(oldConfig.getConfigurationSection("Users"));
 
-        String separator = TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY ? "server" : "world";
+        String separator = TAB.getInstance().getPlatform().isProxy() ? "server" : "world";
         Map<String,Map<String,Object>> perWorldSettings = oldConfig.getConfigurationSection("per-" + separator + "-settings");
         Map<String,Object> groupMap = new LinkedHashMap<>();
         Map<String,Object> userMap = new LinkedHashMap<>();
@@ -352,22 +345,22 @@ public class Converter {
     }
 
     public void convert301to302(@NotNull ConfigurationFile config) {
-        if (!config.hasConfigOption("placeholders.remove-strings")) return;
-        TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 3.0.1 to 3.0.2"));
-        config.set("placeholders.remove-strings", null);
+        if (config.removeOption("placeholders.remove-strings")) {
+            TAB.getInstance().getPlatform().logInfo(new SimpleComponent(EnumChatFormat.YELLOW + "Performing configuration conversion from 3.0.1 to 3.0.2"));
+        }
     }
 
     public void convert331to332(@NotNull ConfigurationFile config) {
-        if (!config.hasConfigOption("scoreboard-teams.unlimited-nametag-mode.use-marker-tag-for-1-8-x-clients")) return;
-        TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 3.3.1 to 3.3.2)"));
-        config.set("scoreboard-teams.unlimited-nametag-mode.use-marker-tag-for-1-8-x-clients", null);
+        if (config.removeOption("scoreboard-teams.unlimited-nametag-mode.use-marker-tag-for-1-8-x-clients")) {
+            TAB.getInstance().getPlatform().logInfo(new SimpleComponent(EnumChatFormat.YELLOW + "Performing configuration conversion from 3.3.1 to 3.3.2)"));
+        }
     }
 
     @SuppressWarnings("unchecked")
     public void convert332to400(@NotNull ConfigurationFile config) throws IOException {
         // Removed config options
         if (config.hasConfigOption("fix-pet-names")) {
-            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 3.3.2 to 4.0.0"));
+            TAB.getInstance().getPlatform().logInfo(new SimpleComponent(EnumChatFormat.YELLOW + "Performing configuration conversion from 3.3.2 to 4.0.0"));
             config.set("fix-pet-names", null);
             config.set("bossbar.disable-in-worlds", null);
             config.set("bossbar.disable-in-servers", null);
@@ -427,16 +420,26 @@ public class Converter {
         disabledConditionConverter.accept(config.getConfigurationSection("belowname-objective"));
 
         // Removed config option
-        if (config.hasConfigOption("layout.hide-vanished-players")) config.set("layout.hide-vanished-players", null);
+        config.removeOption("layout.hide-vanished-players");
     }
 
     public void convert403to404(@NotNull ConfigurationFile config) {
-        if (config.hasConfigOption("placeholders.register-tab-expansion")) {
-            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText("&ePerforming configuration conversion from 4.0.3 to 4.0.4"));
-            config.set("placeholders.register-tab-expansion", null);
+        if (config.removeOption("global-playerlist.update-latency")) {
+            TAB.getInstance().getPlatform().logInfo(new SimpleComponent(EnumChatFormat.YELLOW + "Performing configuration conversion from 4.0.3 to 4.0.4"));
         }
-        if (config.hasConfigOption("global-playerlist.update-latency")) {
-            config.set("global-playerlist.update-latency", null);
+    }
+
+    public void convert409to410(@NotNull ConfigurationFile config) {
+        if (config.hasConfigOption("yellow-number-in-tablist")) {
+            TAB.getInstance().getPlatform().logInfo(new SimpleComponent(EnumChatFormat.YELLOW + "Performing configuration conversion from 4.0.9 to 4.1.0"));
+            Map<Object, Object> section = config.getConfigurationSection("yellow-number-in-tablist");
+            section.put("fancy-value", "&7Ping: %ping%");
+            config.set("yellow-number-in-tablist", null);
+            config.set("playerlist-objective", section);
         }
+        config.setIfMissing("belowname-objective.fancy-display-default", "NPC");
+        config.setIfMissing("belowname-objective.fancy-display-players", "&c" + TabConstants.Placeholder.HEALTH);
+        config.removeOption("tablist-name-formatting.align-tabsuffix-on-the-right");
+        config.removeOption("tablist-name-formatting.character-width-overrides");
     }
 }

@@ -2,15 +2,12 @@ package me.neznamy.tab.shared.cpu;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import lombok.Getter;
-import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.TAB;
-import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
-import me.neznamy.tab.shared.features.types.TabFeature;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,10 +19,10 @@ public class CpuManager {
     private final int UPDATE_RATE_SECONDS = 10;
 
     /** Active time in current time period saved as nanoseconds from features */
-    private volatile Map<String, Map<String, Long>> featureUsageCurrent = new ConcurrentHashMap<>();
+    private volatile Map<String, Map<String, AtomicLong>> featureUsageCurrent = new ConcurrentHashMap<>();
 
     /** Active time in current time period saved as nanoseconds from placeholders */
-    private volatile Map<String, Long> placeholderUsageCurrent = new ConcurrentHashMap<>();
+    private volatile Map<String, AtomicLong> placeholderUsageCurrent = new ConcurrentHashMap<>();
 
     /** Last CPU report */
     @Nullable @Getter private CpuReport lastReport;
@@ -35,6 +32,7 @@ public class CpuManager {
             new ThreadFactoryBuilder().setNameFormat("TAB Processing Thread").build());
 
     /** Scheduler for placeholder refreshing task to prevent inefficient placeholders from lagging the entire plugin */
+    @Getter
     private final ScheduledExecutorService placeholderThread = Executors.newSingleThreadScheduledExecutor(
             new ThreadFactoryBuilder().setNameFormat("TAB Placeholder Refreshing Thread").build());
 
@@ -42,22 +40,26 @@ public class CpuManager {
     private final Queue<Runnable> taskQueue = new ConcurrentLinkedQueue<>();
 
     /** Enabled flag used to queue incoming tasks if plugin is not enabled yet */
-    private volatile boolean enabled = false;
+    private volatile boolean enabled;
+
+    /** Boolean tracking whether CPU usage should be tracked or not */
+    private boolean trackUsage;
 
     /**
-     * Constructs new instance and starts repeating task that resets values in configured interval
+     * Enables CPU usage tracking and returns {@code true} if it was not enabled previously.
+     * If it was, does nothing and returns {@code false}.
+     *
+     * @return  {@code true} if this call enabled it, {@code false} if it was already enabled before
      */
-    public CpuManager() {
+    public boolean enableTracking() {
+        if (trackUsage) return false;
+        trackUsage = true;
         startRepeatingTask((int) TimeUnit.SECONDS.toMillis(UPDATE_RATE_SECONDS), () -> {
             lastReport = new CpuReport(UPDATE_RATE_SECONDS, featureUsageCurrent, placeholderUsageCurrent);
             featureUsageCurrent = new ConcurrentHashMap<>();
             placeholderUsageCurrent = new ConcurrentHashMap<>();
-            if (lastReport.getPlaceholderUsageTotal() > 50) {
-                TAB.getInstance().getPlatform().logWarn(new IChatBaseComponent("CPU usage of placeholders is " + (int) lastReport.getPlaceholderUsageTotal() +
-                        "%. See /" + (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY ? TabConstants.COMMAND_PROXY : TabConstants.COMMAND_BACKEND) +
-                        " cpu for more info. Try increasing refresh intervals."));
-            }
         });
+        return true;
     }
 
     /**
@@ -73,21 +75,10 @@ public class CpuManager {
      */
     public void enable() {
         enabled = true;
-
         Runnable r;
         while ((r = taskQueue.poll()) != null) {
             submit(r);
         }
-        // This one cannot be queued to processing thread, because we want it in different thread
-        placeholderThread.scheduleAtFixedRate(() -> run(() -> {
-                    long time = System.nanoTime();
-                    TAB.getInstance().getPlaceholderManager().refresh();
-                    addTime(TAB.getInstance().getPlaceholderManager().getFeatureName(), TabConstants.CpuUsageCategory.PLACEHOLDER_REFRESHING, System.nanoTime() - time);
-                }),
-                TabConstants.Placeholder.MINIMUM_REFRESH_INTERVAL,
-                TabConstants.Placeholder.MINIMUM_REFRESH_INTERVAL,
-                TimeUnit.MILLISECONDS
-        );
     }
 
     /**
@@ -112,30 +103,10 @@ public class CpuManager {
      * @param type        sub-feature to add time to
      * @param nanoseconds time to add
      */
-    public void addTime(@NotNull TabFeature feature, @NotNull String type, long nanoseconds) {
-        addTime(feature.getFeatureName(), type, nanoseconds);
-    }
-
-    /**
-     * Adds cpu time to specified feature and usage type
-     *
-     * @param feature     feature to add time to
-     * @param type        sub-feature to add time to
-     * @param nanoseconds time to add
-     */
     public void addTime(@NotNull String feature, @NotNull String type, long nanoseconds) {
-        featureUsageCurrent.computeIfAbsent(feature, f -> new ConcurrentHashMap<>()).merge(type, nanoseconds, Long::sum);
-    }
-
-    /**
-     * Adds used time to specified key into specified map
-     *
-     * @param map  map to add usage to
-     * @param key  usage key
-     * @param time nanoseconds to add
-     */
-    private void addTime(@NotNull Map<String, Long> map, @NotNull String key, long time) {
-        map.merge(key, time, Long::sum);
+        if (!trackUsage) return;
+        featureUsageCurrent.computeIfAbsent(feature, f -> new ConcurrentHashMap<>())
+                .computeIfAbsent(type, t -> new AtomicLong()).addAndGet(nanoseconds);
     }
 
     /**
@@ -145,15 +116,12 @@ public class CpuManager {
      * @param nanoseconds time to add
      */
     public void addPlaceholderTime(@NotNull String placeholder, long nanoseconds) {
-        addTime(placeholderUsageCurrent, placeholder, nanoseconds);
+        if (!trackUsage) return;
+        placeholderUsageCurrent.computeIfAbsent(placeholder, l -> new AtomicLong()).addAndGet(nanoseconds);
     }
 
     public void runMeasuredTask(@NotNull String feature, @NotNull String type, @NotNull Runnable task) {
-        submit(() -> {
-            long time = System.nanoTime();
-            task.run();
-            addTime(feature, type, System.nanoTime() - time);
-        });
+        submit(() -> runAndMeasure(task, feature, type));
     }
 
     public void runTask(@NotNull Runnable task) {
@@ -162,7 +130,7 @@ public class CpuManager {
 
     public void startRepeatingMeasuredTask(int intervalMilliseconds, @NotNull String feature, @NotNull String type, @NotNull Runnable task) {
         if (processingThread.isShutdown()) return;
-        processingThread.scheduleAtFixedRate(() -> runMeasuredTask(feature, type, task), intervalMilliseconds, intervalMilliseconds, TimeUnit.MILLISECONDS);
+        processingThread.scheduleAtFixedRate(() -> runAndMeasure(task, feature, type), intervalMilliseconds, intervalMilliseconds, TimeUnit.MILLISECONDS);
     }
 
     public void startRepeatingTask(int intervalMilliseconds, @NotNull Runnable task) {
@@ -172,14 +140,24 @@ public class CpuManager {
 
     public void runTaskLater(int delayMilliseconds, @NotNull String feature, @NotNull String type, @NotNull Runnable task) {
         if (processingThread.isShutdown()) return;
-        processingThread.schedule(() -> runMeasuredTask(feature, type, task), delayMilliseconds, TimeUnit.MILLISECONDS);
+        processingThread.schedule(() -> runAndMeasure(task, feature, type), delayMilliseconds, TimeUnit.MILLISECONDS);
+    }
+
+    public void runAndMeasure(@NotNull Runnable task, @NotNull String feature, @NotNull String type) {
+        if (!trackUsage) {
+            run(task);
+            return;
+        }
+        long time = System.nanoTime();
+        run(task);
+        addTime(feature, type, System.nanoTime() - time);
     }
 
     private void run(@NotNull Runnable task) {
         try {
             task.run();
         } catch (Exception | LinkageError | StackOverflowError e) {
-            TAB.getInstance().getErrorManager().printError("An error was thrown when executing task", e);
+            TAB.getInstance().getErrorManager().taskThrewError(e);
         }
     }
 }

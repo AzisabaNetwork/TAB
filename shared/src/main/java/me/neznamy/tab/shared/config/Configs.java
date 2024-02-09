@@ -1,14 +1,16 @@
 package me.neznamy.tab.shared.config;
 
 import lombok.Getter;
-import me.neznamy.tab.shared.ProtocolVersion;
+import me.neznamy.tab.shared.FeatureManager;
 import me.neznamy.tab.shared.TAB;
+import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.shared.config.file.ConfigurationFile;
 import me.neznamy.tab.shared.config.file.YamlConfigurationFile;
 import me.neznamy.tab.shared.config.file.YamlPropertyConfigurationFile;
 import me.neznamy.tab.shared.config.mysql.MySQL;
 import me.neznamy.tab.shared.config.mysql.MySQLGroupConfiguration;
 import me.neznamy.tab.shared.config.mysql.MySQLUserConfiguration;
+import me.neznamy.tab.shared.features.globalplayerlist.GlobalPlayerList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -27,7 +29,7 @@ public class Configs {
     @Getter private final ConfigurationFile config = new YamlConfigurationFile(getClass().getClassLoader().getResourceAsStream("config.yml"),
             new File(TAB.getInstance().getDataFolder(), "config.yml"));
 
-    @Getter private final boolean bukkitPermissions = TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY && config.getBoolean("use-bukkit-permissions-manager", false);
+    @Getter private final boolean bukkitPermissions = TAB.getInstance().getPlatform().isProxy() && config.getBoolean("use-bukkit-permissions-manager", false);
     @Getter private final boolean debugMode = config.getBoolean("debug", false);
     @Getter private final boolean onlineUuidInTabList = config.getBoolean("use-online-uuid-in-tablist", true);
     @Getter private final boolean pipelineInjection = getSecretOption("pipeline-injection", true);
@@ -58,7 +60,7 @@ public class Configs {
      * @throws  YAMLException
      *          if files contain syntax errors
      */
-    public Configs() throws YAMLException, IOException {
+    public Configs() throws IOException {
         Converter converter = new Converter();
         converter.convert2810to290(animationFile);
         converter.convert292to300(config);
@@ -66,6 +68,7 @@ public class Configs {
         converter.convert331to332(config);
         converter.convert332to400(config);
         converter.convert403to404(config);
+        converter.convert409to410(config);
         if (config.getBoolean("mysql.enabled", false)) {
             try {
                 // Initialization to try to avoid java.sql.SQLException: No suitable driver found
@@ -86,6 +89,7 @@ public class Configs {
         }
         groups = new YamlPropertyConfigurationFile(getClass().getClassLoader().getResourceAsStream("groups.yml"), new File(TAB.getInstance().getDataFolder(), "groups.yml"));
         users = new YamlPropertyConfigurationFile(getClass().getClassLoader().getResourceAsStream("users.yml"), new File(TAB.getInstance().getDataFolder(), "users.yml"));
+        TAB.getInstance().getConfigHelper().hint().checkForRedundantElseReplacement(config.getConfigurationSection("placeholder-output-replacements"));
     }
 
     /**
@@ -131,5 +135,30 @@ public class Configs {
             }
         }
         return element;
+    }
+
+    public String getServerGroup(@NotNull List<Object> serverGroups, @Nullable String server) {
+        String globalGroup = tryServerGroup(serverGroups, server);
+        if (globalGroup != null) return globalGroup;
+
+        // Use existing logic to check config key for server group (separated by ';')
+        return getGroup(serverGroups, server);
+    }
+
+    private @Nullable String tryServerGroup(@NotNull List<Object> serverGroups, @Nullable String server) {
+        if (serverGroups.isEmpty() || server == null) return null;
+
+        // Check global-playerlist server-groups for this server
+        FeatureManager featureManager = TAB.getInstance().getFeatureManager();
+        if (!featureManager.isFeatureEnabled(TabConstants.Feature.GLOBAL_PLAYER_LIST)) return null;
+
+        GlobalPlayerList t = featureManager.getFeature(TabConstants.Feature.GLOBAL_PLAYER_LIST);
+        if (t == null) return null;
+
+        String globalGroup = t.getServerGroup(server);
+        for (Object serverGroup : serverGroups) {
+            if (globalGroup.equals(serverGroup.toString())) return globalGroup;
+        }
+        return null;
     }
 }

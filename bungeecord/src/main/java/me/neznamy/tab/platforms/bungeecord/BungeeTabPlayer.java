@@ -1,21 +1,19 @@
 package me.neznamy.tab.platforms.bungeecord;
 
-import de.myzelyam.api.vanish.BungeeVanishAPI;
 import lombok.Getter;
-import lombok.SneakyThrows;
 import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.platforms.bungeecord.tablist.BungeeTabList1193;
 import me.neznamy.tab.platforms.bungeecord.tablist.BungeeTabList17;
 import me.neznamy.tab.platforms.bungeecord.tablist.BungeeTabList18;
+import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
+import me.neznamy.tab.shared.hook.PremiumVanishHook;
 import me.neznamy.tab.shared.platform.Scoreboard;
 import me.neznamy.tab.shared.platform.TabList;
-import me.neznamy.tab.shared.platform.bossbar.BossBar;
+import me.neznamy.tab.shared.platform.BossBar;
 import me.neznamy.tab.shared.proxy.ProxyTabPlayer;
-import me.neznamy.tab.shared.util.ReflectionUtils;
 import net.md_5.bungee.UserConnection;
-import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.connection.InitialHandler;
 import net.md_5.bungee.connection.LoginResult;
@@ -29,12 +27,6 @@ import org.jetbrains.annotations.Nullable;
  */
 @Getter
 public class BungeeTabPlayer extends ProxyTabPlayer {
-
-    /** Flag tracking plugin presence */
-    private static final boolean premiumVanish = ProxyServer.getInstance().getPluginManager().getPlugin("PremiumVanish") != null;
-
-    /** Flag tracking version of bungeecord with packet queue due to configuration phase */
-    private static final boolean packetQueue = ReflectionUtils.methodExists(UserConnection.class, "sendPacketQueued", DefinedPacket.class);
 
     /** Player's scoreboard */
     @NotNull
@@ -77,7 +69,7 @@ public class BungeeTabPlayer extends ProxyTabPlayer {
     }
 
     @Override
-    public void sendMessage(@NotNull IChatBaseComponent message) {
+    public void sendMessage(@NotNull TabComponent message) {
         getPlayer().sendMessage(getPlatform().toComponent(message, getVersion()));
     }
 
@@ -109,11 +101,19 @@ public class BungeeTabPlayer extends ProxyTabPlayer {
 
     @Override
     public void sendPluginMessage(byte[] message) {
-        if (getPlayer().getServer() == null) {
-            errorNoServer(message);
-            return;
+        if (!getPlayer().isConnected()) return;
+        try {
+            getPlayer().getServer().sendData(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME, message);
+        } catch (NullPointerException BungeeCordBug) {
+            // java.lang.NullPointerException: Cannot invoke "net.md_5.bungee.protocol.MinecraftEncoder.getProtocol()" because the return value of "io.netty.channel.ChannelPipeline.get(java.lang.Class)" is null
+            //        at net.md_5.bungee.netty.ChannelWrapper.getEncodeProtocol(ChannelWrapper.java:51)
+            //        at net.md_5.bungee.ServerConnection.sendPacketQueued(ServerConnection.java:48)
+            //        at net.md_5.bungee.ServerConnection.sendData(ServerConnection.java:70)
+            if (TAB.getInstance().getConfiguration().isDebugMode()) {
+                TAB.getInstance().getErrorManager().printError("Failed to deliver plugin message to player " + getName() +
+                        " (online = " + getPlayer().isConnected() + ")", BungeeCordBug);
+            }
         }
-        getPlayer().getServer().sendData(TabConstants.PLUGIN_MESSAGE_CHANNEL_NAME, message);
     }
 
     /**
@@ -131,12 +131,7 @@ public class BungeeTabPlayer extends ProxyTabPlayer {
 
     @Override
     public boolean isVanished() {
-        try {
-            //noinspection ConstantConditions
-            if (premiumVanish && BungeeVanishAPI.isInvisible(getPlayer())) return true;
-        } catch (IllegalStateException ignored) {
-            // PV Bug: PremiumVanish must be enabled to use its API
-        }
+        if (PremiumVanishHook.getInstance() != null && PremiumVanishHook.getInstance().isVanished(this)) return true;
         return super.isVanished();
     }
 
@@ -156,12 +151,18 @@ public class BungeeTabPlayer extends ProxyTabPlayer {
      * @param   packet
      *          Packet to send
      */
-    @SneakyThrows
     public void sendPacket(@NotNull DefinedPacket packet) {
-        if (packetQueue) {
-            UserConnection.class.getDeclaredMethod("sendPacketQueued", DefinedPacket.class).invoke(player, packet);
-        } else {
-            getPlayer().unsafe().sendPacket(packet);
+        if (!getPlayer().isConnected()) return;
+        try {
+            ((UserConnection)getPlayer()).sendPacketQueued(packet);
+        } catch (NullPointerException BungeeCordBug) {
+            // java.lang.NullPointerException: Cannot invoke "net.md_5.bungee.protocol.MinecraftEncoder.getProtocol()" because the return value of "io.netty.channel.ChannelPipeline.get(java.lang.Class)" is null
+            //        at net.md_5.bungee.netty.ChannelWrapper.getEncodeProtocol(ChannelWrapper.java:51)
+            //        at net.md_5.bungee.UserConnection.sendPacketQueued(UserConnection.java:194)
+            if (TAB.getInstance().getConfiguration().isDebugMode()) {
+                TAB.getInstance().getErrorManager().printError("Failed to deliver packet to player " + getName() +
+                        " (online = " + getPlayer().isConnected() + "): " + packet, BungeeCordBug);
+            }
         }
     }
 }

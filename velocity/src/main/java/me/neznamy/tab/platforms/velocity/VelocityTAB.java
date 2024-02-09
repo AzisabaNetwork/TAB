@@ -10,7 +10,6 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import lombok.Getter;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import org.bstats.velocity.Metrics;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -26,7 +25,7 @@ import java.nio.file.Path;
         version = TabConstants.PLUGIN_VERSION,
         description = TabConstants.PLUGIN_DESCRIPTION,
         url = TabConstants.PLUGIN_WEBSITE,
-        authors = {TabConstants.PLUGIN_AUTHOR}
+        authors = TabConstants.PLUGIN_AUTHOR
 )
 @Getter
 public class VelocityTAB {
@@ -52,9 +51,6 @@ public class VelocityTAB {
     @Subscribe
     public void onProxyInitialization(@Nullable ProxyInitializeEvent event) {
         TAB.create(new VelocityPlatform(this));
-        TAB.getInstance().getPlatform().logWarn(new IChatBaseComponent("Velocity compatibility is very experimental and should not be used in production! " +
-                "If you use it, you WILL run into issues and they WILL NOT be fixed. Any bug reports featuring Velocity installation " +
-                "will be immediately closed."));
     }
     
     /**
@@ -66,6 +62,7 @@ public class VelocityTAB {
      */
     @Subscribe
     public void onProxyShutdown(@Nullable ProxyShutdownEvent event) {
-        TAB.getInstance().unload();
+        // Fix race condition as Velocity calls DisconnectEvent for each player before this event
+        TAB.getInstance().getCPUManager().runTask(() -> TAB.getInstance().unload());
     }
 }

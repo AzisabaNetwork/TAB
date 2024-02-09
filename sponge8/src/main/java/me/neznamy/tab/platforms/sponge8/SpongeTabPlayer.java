@@ -4,11 +4,12 @@ import lombok.Getter;
 import me.neznamy.tab.shared.backend.BackendTabPlayer;
 import me.neznamy.tab.shared.backend.entityview.DummyEntityView;
 import me.neznamy.tab.shared.backend.entityview.EntityView;
-import me.neznamy.tab.shared.platform.bossbar.AdventureBossBar;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
+import me.neznamy.tab.shared.hook.AdventureHook;
+import me.neznamy.tab.shared.platform.impl.AdventureBossBar;
 import me.neznamy.tab.shared.platform.TabList;
 import me.neznamy.tab.shared.platform.Scoreboard;
-import me.neznamy.tab.shared.platform.bossbar.BossBar;
+import me.neznamy.tab.shared.platform.BossBar;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -22,6 +23,9 @@ import org.spongepowered.api.profile.property.ProfileProperty;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * TabPlayer implementation for Sponge 8.
+ */
 @Getter
 public class SpongeTabPlayer extends BackendTabPlayer {
 
@@ -37,8 +41,16 @@ public class SpongeTabPlayer extends BackendTabPlayer {
     @NotNull
     private final EntityView entityView = new DummyEntityView();
 
+    /**
+     * Constructs new instance with given parameters.
+     *
+     * @param   platform
+     *          Server platform
+     * @param   player
+     *          Platform's player object
+     */
     public SpongeTabPlayer(@NotNull SpongePlatform platform, @NotNull ServerPlayer player) {
-        super(platform, player, player.uniqueId(), player.name(), player.world().key().value());
+        super(platform, player, player.uniqueId(), player.name(), player.world().key().value(), platform.getServerVersion().getNetworkId());
     }
 
     @Override
@@ -52,8 +64,8 @@ public class SpongeTabPlayer extends BackendTabPlayer {
     }
 
     @Override
-    public void sendMessage(@NotNull IChatBaseComponent message) {
-        getPlayer().sendMessage(getPlatform().toComponent(message, getVersion()));
+    public void sendMessage(@NotNull TabComponent message) {
+        getPlayer().sendMessage(AdventureHook.toAdventureComponent(message, getVersion()));
     }
 
     @Override

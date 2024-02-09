@@ -4,8 +4,8 @@ import com.viaversion.viaversion.api.Via;
 import com.viaversion.viaversion.api.legacy.bossbar.BossColor;
 import com.viaversion.viaversion.api.legacy.bossbar.BossStyle;
 import lombok.RequiredArgsConstructor;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
-import me.neznamy.tab.shared.platform.bossbar.BossBar;
+import me.neznamy.tab.shared.chat.TabComponent;
+import me.neznamy.tab.shared.platform.BossBar;
 import me.neznamy.tab.api.bossbar.BarColor;
 import me.neznamy.tab.api.bossbar.BarStyle;
 import me.neznamy.tab.platforms.bukkit.BukkitTabPlayer;
@@ -21,6 +21,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ViaBossBar implements BossBar {
 
+    /** Style array for fast access */
+    private static final BossStyle[] styles = BossStyle.values();
+    
     /** Player this handler belongs to */
     @NotNull
     private final BukkitTabPlayer player;
@@ -33,17 +36,18 @@ public class ViaBossBar implements BossBar {
     public void create(@NotNull UUID id, @NotNull String title, float progress, @NotNull BarColor color, @NotNull BarStyle style) {
         if (viaBossBars.containsKey(id)) return;
         com.viaversion.viaversion.api.legacy.bossbar.BossBar bar = Via.getAPI().legacyAPI().createLegacyBossBar(
-                IChatBaseComponent.optimizedComponent(title).toString(player.getVersion()),
+                TabComponent.optimized(title).toString(player.getVersion()),
                 progress,
                 BossColor.valueOf(color.name()),
-                BossStyle.valueOf(style.getBukkitName()));
+                styles[style.ordinal()]
+        );
         viaBossBars.put(id, bar);
         bar.addPlayer(player.getPlayer().getUniqueId());
     }
 
     @Override
     public void update(@NotNull UUID id, @NotNull String title) {
-        viaBossBars.get(id).setTitle(IChatBaseComponent.optimizedComponent(title).toString(player.getVersion()));
+        viaBossBars.get(id).setTitle(TabComponent.optimized(title).toString(player.getVersion()));
     }
 
     @Override
@@ -53,7 +57,7 @@ public class ViaBossBar implements BossBar {
 
     @Override
     public void update(@NotNull UUID id, @NotNull BarStyle style) {
-        viaBossBars.get(id).setStyle(BossStyle.valueOf(style.getBukkitName()));
+        viaBossBars.get(id).setStyle(styles[style.ordinal()]);
     }
 
     @Override

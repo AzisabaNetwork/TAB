@@ -6,7 +6,8 @@ import me.neznamy.tab.api.tablist.TabListFormatManager;
 import me.neznamy.tab.shared.Property;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.SimpleComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.features.layout.LayoutManagerImpl;
 import me.neznamy.tab.shared.features.layout.LayoutView;
 import me.neznamy.tab.shared.features.layout.PlayerSlot;
@@ -23,38 +24,42 @@ import java.util.UUID;
 /**
  * Feature handler for TabList display names
  */
+@Getter
 public class PlayerList extends TabFeature implements TabListFormatManager, JoinListener, DisplayNameListener, Loadable,
         UnLoadable, WorldSwitchListener, ServerSwitchListener, Refreshable, VanishListener {
 
-    @Getter protected final String featureName = "Tablist name formatting";
-    @Getter private final String refreshDisplayName = "Updating TabList format";
+    protected final String featureName = "Tablist name formatting";
+    private final String refreshDisplayName = "Updating TabList format";
 
     /** Config option toggling anti-override which prevents other plugins from overriding TAB */
-    @Getter protected final boolean antiOverrideTabList = TAB.getInstance().getConfiguration().getConfig().getBoolean("tablist-name-formatting.anti-override", true);
+    protected final boolean antiOverrideTabList = config().getBoolean("tablist-name-formatting.anti-override", true);
 
     private final LayoutManagerImpl layoutManager = TAB.getInstance().getFeatureManager().getFeature(TabConstants.Feature.LAYOUT);
     private RedisSupport redis;
-    @Getter protected final DisableChecker disableChecker;
+    protected final DisableChecker disableChecker;
 
     /**
      * Flag tracking when the plugin is disabling to properly clear
      * display name by setting it to null value and not force the value back
      * with the anti-override.
      */
-    private boolean disabling = false;
+    private boolean disabling;
 
+    /**
+     * Constructs new instance, registers disable checker into feature manager and starts anti-override.
+     */
     public PlayerList() {
-        Condition disableCondition = Condition.getCondition(TAB.getInstance().getConfig().getString("tablist-name-formatting.disable-condition"));
+        Condition disableCondition = Condition.getCondition(config().getString("tablist-name-formatting.disable-condition"));
         disableChecker = new DisableChecker(featureName, disableCondition, this::onDisableConditionChange);
         TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.PLAYER_LIST + "-Condition", disableChecker);
         if (antiOverrideTabList) {
-            TAB.getInstance().getCPUManager().startRepeatingMeasuredTask(500, getFeatureName(), TabConstants.CpuUsageCategory.ANTI_OVERRIDE, () -> {
+            TAB.getInstance().getCPUManager().startRepeatingMeasuredTask(500, featureName, TabConstants.CpuUsageCategory.ANTI_OVERRIDE, () -> {
                 for (TabPlayer p : TAB.getInstance().getOnlinePlayers()) {
                     p.getTabList().checkDisplayNames();
                 }
             });
         } else {
-            TAB.getInstance().getMisconfigurationHelper().tablistAntiOverrideDisabled();
+            TAB.getInstance().getConfigHelper().startup().tablistAntiOverrideDisabled();
         }
     }
 
@@ -112,7 +117,7 @@ public class PlayerList extends TabFeature implements TabListFormatManager, Join
             if (viewer.getVersion().getMinorVersion() < 8) continue;
             UUID tablistId = getTablistUUID(player, viewer);
             viewer.getTabList().updateDisplayName(tablistId, format ? getTabFormat(player, viewer) :
-                    tablistId.getMostSignificantBits() == 0 ? new IChatBaseComponent(player.getName()) : null);
+                    tablistId.getMostSignificantBits() == 0 ? new SimpleComponent(player.getName()) : null);
         }
         if (redis != null) redis.updateTabFormat(player, player.getProperty(TabConstants.Property.TABPREFIX).get() +
                 player.getProperty(TabConstants.Property.CUSTOMTABNAME).get() + player.getProperty(TabConstants.Property.TABSUFFIX).get());
@@ -127,14 +132,14 @@ public class PlayerList extends TabFeature implements TabListFormatManager, Join
      *          Viewer seeing the format
      * @return  Format of specified player for viewer
      */
-    public @Nullable IChatBaseComponent getTabFormat(@NotNull TabPlayer p, @NotNull TabPlayer viewer) {
+    public @Nullable TabComponent getTabFormat(@NotNull TabPlayer p, @NotNull TabPlayer viewer) {
         Property prefix = p.getProperty(TabConstants.Property.TABPREFIX);
         Property name = p.getProperty(TabConstants.Property.CUSTOMTABNAME);
         Property suffix = p.getProperty(TabConstants.Property.TABSUFFIX);
         if (prefix == null || name == null || suffix == null) {
             return null;
         }
-        return IChatBaseComponent.optimizedComponent(prefix.getFormat(viewer) + name.getFormat(viewer) + suffix.getFormat(viewer));
+        return TabComponent.optimized(prefix.getFormat(viewer) + name.getFormat(viewer) + suffix.getFormat(viewer));
     }
 
     @Override
@@ -187,6 +192,14 @@ public class PlayerList extends TabFeature implements TabListFormatManager, Join
         if (updateProperties(changed) && !disableChecker.isDisabledPlayer(changed)) updatePlayer(changed, true);
     }
 
+    /**
+     * Processes disable condition change.
+     *
+     * @param   p
+     *          Player who the condition has changed for
+     * @param   disabledNow
+     *          Whether the feature is disabled now or not
+     */
     public void onDisableConditionChange(TabPlayer p, boolean disabledNow) {
         updatePlayer(p, !disabledNow);
     }
@@ -226,8 +239,7 @@ public class PlayerList extends TabFeature implements TabListFormatManager, Join
             }
         };
         //add packet might be sent after tab's refresh packet, resending again when anti-override is disabled
-        if (!antiOverrideTabList || !TAB.getInstance().getFeatureManager().isFeatureEnabled(TabConstants.Feature.PIPELINE_INJECTION) ||
-                connectedPlayer.getVersion().getMinorVersion() == 8) {
+        if (!antiOverrideTabList || !TAB.getInstance().getFeatureManager().isFeatureEnabled(TabConstants.Feature.PIPELINE_INJECTION)) {
             TAB.getInstance().getCPUManager().runTaskLater(300, featureName, TabConstants.CpuUsageCategory.PLAYER_JOIN, r);
         } else {
             r.run();
@@ -235,7 +247,7 @@ public class PlayerList extends TabFeature implements TabListFormatManager, Join
     }
 
     @Override
-    public IChatBaseComponent onDisplayNameChange(@NotNull TabPlayer packetReceiver, @NotNull UUID id) {
+    public TabComponent onDisplayNameChange(@NotNull TabPlayer packetReceiver, @NotNull UUID id) {
         if (disabling || !antiOverrideTabList) return null;
         TabPlayer packetPlayer = TAB.getInstance().getPlayerByTabListUUID(id);
         if (packetPlayer != null && !disableChecker.isDisabledPlayer(packetPlayer) && packetPlayer.getTablistId() == getTablistUUID(packetPlayer, packetReceiver)) {

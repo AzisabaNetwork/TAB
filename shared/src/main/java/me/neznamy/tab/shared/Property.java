@@ -8,7 +8,7 @@ import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.chat.EnumChatFormat;
 import me.neznamy.tab.shared.chat.rgb.RGBUtils;
 import me.neznamy.tab.shared.placeholders.expansion.TabExpansion;
-import me.neznamy.tab.shared.placeholders.RelationalPlaceholderImpl;
+import me.neznamy.tab.shared.placeholders.types.RelationalPlaceholderImpl;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -19,6 +19,8 @@ import org.jetbrains.annotations.Nullable;
  * will receive refresh call letting it know and allowing to get new value.
  */
 public class Property {
+
+    private static long counter;
 
     /** Internal identifier for this text for PlaceholderAPI expansion, null if it should not be exposed */
     @Nullable private final String name;
@@ -66,6 +68,8 @@ public class Property {
      * Constructs new instance with given parameters and prepares
      * the formatter for use by detecting placeholders and reformatting the text.
      *
+     * @param   name
+     *          Property name to use in expansion (nullable if not use)
      * @param   listener
      *          Feature which should receive refresh method if placeholder changes value
      * @param   owner
@@ -81,8 +85,8 @@ public class Property {
         this.listener = listener;
         this.owner = owner;
         this.source = source;
-        this.originalRawValue = rawValue;
-        analyze(this.originalRawValue);
+        originalRawValue = rawValue;
+        analyze(originalRawValue);
     }
 
     /**
@@ -93,6 +97,7 @@ public class Property {
      *          raw value to analyze
      */
     private void analyze(@NotNull String value) {
+        // Identify placeholders used directly
         List<String> placeholders0 = new ArrayList<>();
         List<String> relPlaceholders0 = new ArrayList<>();
         for (String identifier : TAB.getInstance().getPlaceholderManager().detectPlaceholders(value)) {
@@ -101,11 +106,15 @@ public class Property {
                 relPlaceholders0.add(identifier);
             }
         }
+
+        // Convert all placeholders to %s for String formatter
         String rawFormattedValue0 = value;
         for (String placeholder : placeholders0) {
-            rawFormattedValue0 = rawFormattedValue0.replace(placeholder, "%s");
+            rawFormattedValue0 = replaceFirst(rawFormattedValue0, placeholder);
         }
-        if (placeholders0.size() > 0 && rawFormattedValue0.contains("%")) {
+
+        // Make % symbol not break String formatter by adding another one to display it
+        if (!placeholders0.isEmpty() && rawFormattedValue0.contains("%")) {
             int index = rawFormattedValue0.lastIndexOf('%');
             if (rawFormattedValue0.length() == index+1 || rawFormattedValue0.charAt(index+1) != 's') {
                 StringBuilder sb = new StringBuilder(rawFormattedValue0);
@@ -113,8 +122,19 @@ public class Property {
                 rawFormattedValue0 = sb.toString();
             }
         }
+
+        // Apply gradients that do not include placeholders to avoid applying them on every refresh
         rawFormattedValue0 = RGBUtils.getInstance().applyCleanGradients(rawFormattedValue0);
+
+        // Make \n work even if used in '', which snakeyaml does not convert to newline
+        if (rawFormattedValue0.contains("\\n")) {
+            rawFormattedValue0 = rawFormattedValue0.replace("\\n", "\n");
+        }
+
+        // Apply static colors to not need to do it on every refresh
         rawFormattedValue = EnumChatFormat.color(rawFormattedValue0);
+
+        // Update and save values
         placeholders = placeholders0.toArray(new String[0]);
         relPlaceholders = relPlaceholders0.toArray(new String[0]);
         if (listener != null) {
@@ -126,6 +146,15 @@ public class Property {
             TabExpansion expansion = TAB.getInstance().getPlaceholderManager().getTabExpansion();
             expansion.setPropertyValue(owner, name, lastReplacedValue);
             expansion.setRawPropertyValue(owner, name, getCurrentRawValue());
+        }
+    }
+
+    private String replaceFirst(String original, String searchString) {
+        int index = original.indexOf(searchString);
+        if (index != -1) {
+            return original.substring(0, index) + "%s" + original.substring(index + searchString.length());
+        } else {
+            return original;
         }
     }
 
@@ -236,12 +265,30 @@ public class Property {
      *          the viewer
      * @return  format for the viewer
      */
-    public @NotNull String getFormat(@Nullable TabPlayer viewer) {
+    public @NotNull String getFormat(@NotNull TabPlayer viewer) {
         String format = lastReplacedValue;
+        // Direct placeholders
         for (String identifier : relPlaceholders) {
             RelationalPlaceholderImpl pl = (RelationalPlaceholderImpl) TAB.getInstance().getPlaceholderManager().getPlaceholder(identifier);
-            format = format.replace(pl.getIdentifier(), viewer == null ? "" : pl.getLastValue(viewer, owner));
+            format = format.replace(pl.getIdentifier(), pl.getLastValue(viewer, owner));
+        }
+
+        // Nested placeholders
+        for (String identifier : TAB.getInstance().getPlaceholderManager().detectPlaceholders(format)) {
+            if (!identifier.startsWith("%rel_")) continue;
+            RelationalPlaceholderImpl pl = (RelationalPlaceholderImpl) TAB.getInstance().getPlaceholderManager().getPlaceholder(identifier);
+            format = format.replace(pl.getIdentifier(), pl.getLastValue(viewer, owner));
+            if (listener != null) listener.addUsedPlaceholder(identifier);
         }
         return EnumChatFormat.color(format);
+    }
+
+    /**
+     * Returns a new unique property name.
+     *
+     * @return  A new unique property name.
+     */
+    public static String randomName() {
+        return String.valueOf(counter++);
     }
 }

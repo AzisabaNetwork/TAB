@@ -1,39 +1,3 @@
-val minecraftVersion = "1.20.2"
-
-val v114 = "0.28.5+1.14"
-val v115 = "0.28.5+1.15"
-val v116 = "0.42.0+1.16"
-
-val fabricApiVersions = mapOf(
-    "1.20.2" to "0.88.5+1.20.2",
-    "1.20.1" to "0.83.0+1.20.1",
-    "1.20"   to "0.83.0+1.20",
-    "1.19.4" to "0.77.0+1.19.4",
-    "1.19.3" to "0.76.0+1.19.3",
-    "1.19.2" to "0.76.0+1.19.2",
-    "1.19.1" to "0.58.5+1.19.1",
-    "1.19"   to "0.58.0+1.19",
-    "1.18.2" to "0.76.0+1.18.2",
-    "1.18.1" to "0.46.6+1.18",
-    "1.18"   to "0.46.6+1.18",
-    "1.17.1" to "0.46.1+1.17",
-    "1.17"   to "0.46.1+1.17",
-    "1.16.5" to v116,
-    "1.16.4" to v116,
-    "1.16.3" to v116,
-    "1.16.2" to v116,
-    "1.16.1" to v116,
-    "1.16"   to v116,
-    "1.15.2" to v115,
-    "1.15.1" to v115,
-    "1.15"   to v115,
-    "1.14.4" to v114,
-    "1.14.3" to v114,
-    "1.14.2" to v114,
-    "1.14.1" to v114,
-    "1.14"   to v114,
-)
-
 plugins {
     id("fabric-loom")
 }
@@ -47,31 +11,22 @@ repositories {
 }
 
 dependencies {
-    implementation(projects.shared)
-
-    minecraft("com.mojang:minecraft:$minecraftVersion")
+    api(projects.shared)
+    minecraft("com.mojang:minecraft:24w06a")
     mappings(loom.officialMojangMappings())
-
-    modImplementation("net.fabricmc", "fabric-loader", "0.14.17")
-    modImplementation("me.lucko", "fabric-permissions-api", "0.2-SNAPSHOT")
-    modImplementation(fabricApi.module("fabric-api-base", fabricApiVersions[minecraftVersion]))
-    modImplementation(fabricApi.module("fabric-lifecycle-events-v1", fabricApiVersions[minecraftVersion]))
-    modImplementation(fabricApi.module("fabric-networking-api-v1", fabricApiVersions[minecraftVersion]))
-    modImplementation(fabricApi.module("fabric-entity-events-v1", fabricApiVersions[minecraftVersion]))
-    modImplementation(fabricApi.module("fabric-command-api-v${if (minecraftVersion.split(".")[1].toInt() >= 19) "2" else "1"}", fabricApiVersions[minecraftVersion]))
-}
-
-loom {
-    accessWidenerPath.set(file("src/main/resources/tab.accesswidener"))
+    modImplementation("me.lucko:fabric-permissions-api:0.2-SNAPSHOT")
+    modImplementation("net.fabricmc:fabric-loader:0.14.17")
+    val version = "0.95.4+1.20.5"
+    modImplementation(fabricApi.module("fabric-api-base", version))
+    modImplementation(fabricApi.module("fabric-lifecycle-events-v1", version))
+    modImplementation(fabricApi.module("fabric-networking-api-v1", version))
+    modImplementation(fabricApi.module("fabric-entity-events-v1", version))
+    modImplementation(fabricApi.module("fabric-command-api-v1", "0.77.0+1.18.2"))
+    modImplementation(fabricApi.module("fabric-command-api-v2", version))
 }
 
 tasks {
     compileJava {
         options.release.set(17)
-    }
-    validateAccessWidener {
-        // We don't want to validate the access wideners, as we have wideners for multiple versions, and the validation task will
-        // fail, as the classes for the old wideners don't exist in the new versions and vice versa.
-        enabled = false
     }
 }

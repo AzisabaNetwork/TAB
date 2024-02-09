@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import lombok.Getter;
 import lombok.NonNull;
+import me.neznamy.tab.shared.Property;
 import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.features.types.TabFeature;
 import me.neznamy.tab.api.bossbar.BarColor;
@@ -55,10 +56,10 @@ public class BossBarLine implements BossBar {
     private final StyleRefresher styleRefresher;
 
     //property names
-    private final String propertyTitle;
-    private final String propertyProgress;
-    private final String propertyColor;
-    private final String propertyStyle;
+    private final String propertyTitle = Property.randomName();
+    private final String propertyProgress = Property.randomName();
+    private final String propertyColor = Property.randomName();
+    private final String propertyStyle = Property.randomName();
 
     /**
      * Constructs new instance with given parameters
@@ -83,17 +84,13 @@ public class BossBarLine implements BossBar {
         this.name = name;
         this.displayCondition = Condition.getCondition(displayCondition);
         if (this.displayCondition != null) {
-            manager.addUsedPlaceholders(Collections.singletonList(TabConstants.Placeholder.condition(this.displayCondition.getName())));
+            manager.addUsedPlaceholder(TabConstants.Placeholder.condition(this.displayCondition.getName()));
         }
         this.color = color;
         this.style = style;
         this.title = title;
         this.progress = progress;
-        this.announcementBar = announcementOnly;
-        propertyTitle = TabConstants.Property.bossbarTitle(name);
-        propertyProgress = TabConstants.Property.bossbarProgress(name);
-        propertyColor = TabConstants.Property.bossbarColor(name);
-        propertyStyle = TabConstants.Property.bossbarStyle(name);
+        announcementBar = announcementOnly;
         TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.bossBarTitle(name),
                 textRefresher = new TextRefresher());
         TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.bossBarProgress(name),
@@ -161,8 +158,8 @@ public class BossBarLine implements BossBar {
             if (value > 100) value = 100;
             return value;
         } catch (NumberFormatException e) {
-            TAB.getInstance().getMisconfigurationHelper().invalidNumberForBossBarProgress(
-                    name,
+            TAB.getInstance().getConfigHelper().runtime().invalidNumberForBossBarProgress(
+                    this,
                     progress,
                     player.getProperty(propertyProgress).getCurrentRawValue(),
                     player
@@ -235,6 +232,10 @@ public class BossBarLine implements BossBar {
         player.setProperty(progressRefresher, propertyProgress, progress);
         player.setProperty(colorRefresher, propertyColor, color);
         player.setProperty(styleRefresher, propertyStyle, style);
+        sendToPlayerRaw(player);
+    }
+
+    public void sendToPlayerRaw(TabPlayer player) {
         player.getBossBar().create(
                 uniqueId,
                 player.getProperty(propertyTitle).updateAndGet(),
@@ -262,10 +263,11 @@ public class BossBarLine implements BossBar {
         return players.contains((TabPlayer) player);
     }
 
-    public class TextRefresher extends TabFeature implements Refreshable {
+    @Getter
+    private class TextRefresher extends TabFeature implements Refreshable {
 
-        @Getter private final String featureName = "BossBar";
-        @Getter private final String refreshDisplayName = "Updating text";
+        private final String featureName = "BossBar";
+        private final String refreshDisplayName = "Updating text";
 
         @Override
         public void refresh(@NotNull TabPlayer refreshed, boolean force) {
@@ -274,10 +276,11 @@ public class BossBarLine implements BossBar {
         }
     }
 
-    public class ProgressRefresher extends TabFeature implements Refreshable {
+    @Getter
+    private class ProgressRefresher extends TabFeature implements Refreshable {
 
-        @Getter private final String featureName = "BossBar";
-        @Getter private final String refreshDisplayName = "Updating progress";
+        private final String featureName = "BossBar";
+        private final String refreshDisplayName = "Updating progress";
 
         @Override
         public void refresh(@NotNull TabPlayer refreshed, boolean force) {
@@ -286,10 +289,11 @@ public class BossBarLine implements BossBar {
         }
     }
 
-    public class ColorRefresher extends TabFeature implements Refreshable {
+    @Getter
+    private class ColorRefresher extends TabFeature implements Refreshable {
 
-        @Getter private final String featureName = "BossBar";
-        @Getter private final String refreshDisplayName = "Updating color";
+        private final String featureName = "BossBar";
+        private final String refreshDisplayName = "Updating color";
 
         @Override
         public void refresh(@NotNull TabPlayer refreshed, boolean force) {
@@ -298,10 +302,11 @@ public class BossBarLine implements BossBar {
         }
     }
 
-    public class StyleRefresher extends TabFeature implements Refreshable {
+    @Getter
+    private class StyleRefresher extends TabFeature implements Refreshable {
 
-        @Getter private final String featureName = "BossBar";
-        @Getter private final String refreshDisplayName = "Updating style";
+        private final String featureName = "BossBar";
+        private final String refreshDisplayName = "Updating style";
 
         @Override
         public void refresh(@NotNull TabPlayer refreshed, boolean force) {

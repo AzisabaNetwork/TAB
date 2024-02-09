@@ -20,7 +20,7 @@ import java.util.Map.Entry;
  * An implementation of PlaceholderRegistry for universal placeholders
  * which work on all platforms.
  */
-public class UniversalPlaceholderRegistry implements PlaceholderRegistry {
+public class UniversalPlaceholderRegistry {
 
     /** Decimal formatter for 2 decimal places */
     private final DecimalFormat decimal2;
@@ -31,15 +31,32 @@ public class UniversalPlaceholderRegistry implements PlaceholderRegistry {
         decimal2 = new DecimalFormat("#.##", symbols);
     }
 
+    /**
+     * Registers all placeholders into placeholder manager
+     *
+     * @param   manager
+     *          placeholder manager to register placeholders to
+     */
     @SuppressWarnings("unchecked")
-    @Override
     public void registerPlaceholders(@NotNull PlaceholderManager manager) {
         manager.registerServerPlaceholder("%%", -1, () -> "%");
         manager.registerPlayerPlaceholder(TabConstants.Placeholder.VANISHED, 1000, p -> ((TabPlayer)p).isVanished());
         manager.registerPlayerPlaceholder(TabConstants.Placeholder.WORLD, -1, p -> ((TabPlayer)p).getWorld());
-        manager.registerPlayerPlaceholder(TabConstants.Placeholder.WORLD_ONLINE, 1000, p -> Arrays.stream(TAB.getInstance().getOnlinePlayers()).filter(all -> ((TabPlayer)p).getWorld().equals(all.getWorld()) && !all.isVanished()).count());
+        manager.registerPlayerPlaceholder(TabConstants.Placeholder.WORLD_ONLINE, 1000, p -> {
+            int count = 0;
+            for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
+                if (((TabPlayer)p).getWorld().equals(player.getWorld()) && !player.isVanished()) count++;
+            }
+            return count;
+        });
         manager.registerPlayerPlaceholder(TabConstants.Placeholder.SERVER, -1, p -> ((TabPlayer)p).getServer());
-        manager.registerPlayerPlaceholder(TabConstants.Placeholder.SERVER_ONLINE, 1000, p -> Arrays.stream(TAB.getInstance().getOnlinePlayers()).filter(all -> ((TabPlayer)p).getServer().equals(all.getServer()) && !all.isVanished()).count());
+        manager.registerPlayerPlaceholder(TabConstants.Placeholder.SERVER_ONLINE, 1000, p -> {
+            int count = 0;
+            for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
+                if (((TabPlayer)p).getServer().equals(player.getServer()) && !player.isVanished()) count++;
+            }
+            return count;
+        });
         manager.registerPlayerPlaceholder(TabConstants.Placeholder.PLAYER, -1, me.neznamy.tab.api.TabPlayer::getName);
         double timeOffset = TAB.getInstance().getConfiguration().getConfig().getDouble("placeholders.time-offset", 0);
         SimpleDateFormat timeFormat = createDateFormat(TAB.getInstance().getConfiguration().getConfig().getString("placeholders.time-format", "[HH:mm:ss / h:mm a]"), "[HH:mm:ss / h:mm a]");
@@ -53,9 +70,28 @@ public class UniversalPlaceholderRegistry implements PlaceholderRegistry {
         manager.registerServerPlaceholder(TabConstants.Placeholder.MEMORY_MAX, -1, () -> ((int) (Runtime.getRuntime().maxMemory() / 1048576)));
         manager.registerServerPlaceholder(TabConstants.Placeholder.MEMORY_USED_GB, 200, () -> decimal2.format((float)(Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) /1024/1024/1024));
         manager.registerServerPlaceholder(TabConstants.Placeholder.MEMORY_MAX_GB, -1, () -> decimal2.format((float)Runtime.getRuntime().maxMemory()/1024/1024/1024));
-        manager.registerServerPlaceholder(TabConstants.Placeholder.ONLINE, 1000, () -> Arrays.stream(TAB.getInstance().getOnlinePlayers()).filter(all -> !all.isVanished()).count());
-        manager.registerServerPlaceholder(TabConstants.Placeholder.STAFF_ONLINE, 2000, () -> Arrays.stream(TAB.getInstance().getOnlinePlayers()).filter(all -> all.hasPermission(TabConstants.Permission.STAFF) && !all.isVanished()).count());
-        manager.registerServerPlaceholder(TabConstants.Placeholder.NON_STAFF_ONLINE, 2000, () -> Arrays.stream(TAB.getInstance().getOnlinePlayers()).filter(all -> !all.hasPermission(TabConstants.Permission.STAFF) && !all.isVanished()).count());
+        manager.registerPlayerPlaceholder(TabConstants.Placeholder.BEDROCK, -1, p -> ((TabPlayer)p).isBedrockPlayer());
+        manager.registerServerPlaceholder(TabConstants.Placeholder.ONLINE, 1000, () -> {
+            int count = 0;
+            for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
+                if (!player.isVanished()) count++;
+            }
+            return count;
+        });
+        manager.registerServerPlaceholder(TabConstants.Placeholder.STAFF_ONLINE, 2000, () -> {
+            int count = 0;
+            for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
+                if (player.hasPermission(TabConstants.Permission.STAFF) && !player.isVanished()) count++;
+            }
+            return count;
+        });
+        manager.registerServerPlaceholder(TabConstants.Placeholder.NON_STAFF_ONLINE, 2000, () -> {
+            int count = 0;
+            for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
+                if (!player.hasPermission(TabConstants.Permission.STAFF) && !player.isVanished()) count++;
+            }
+            return count;
+        });
         manager.registerPlayerPlaceholder(TabConstants.Placeholder.GAMEMODE, 100, p -> ((TabPlayer)p).getGamemode());
         if (LuckPermsHook.getInstance().isInstalled()) {
             manager.registerPlayerPlaceholder(TabConstants.Placeholder.LUCKPERMS_PREFIX, 1000,
@@ -67,16 +103,13 @@ public class UniversalPlaceholderRegistry implements PlaceholderRegistry {
             manager.registerServerPlaceholder(TabConstants.Placeholder.LUCKPERMS_SUFFIX, -1, () -> "");
         }
         for (Object s : TAB.getInstance().getConfiguration().getAnimationFile().getValues().keySet()) {
-            Animation a = new Animation(s.toString(), TAB.getInstance().getConfiguration().getAnimationFile().getStringList(s + ".texts"),
-                    TAB.getInstance().getConfiguration().getAnimationFile().getInt(s + ".change-interval", 0));
-            List<String> nested = Arrays.asList(a.getNestedPlaceholders());
-            ((PlaceholderManagerImpl) manager).registerPlaceholder(new PlayerPlaceholderImpl(TabConstants.Placeholder.animation(a.getName()), a.getRefresh(), p -> a.getMessage()) {
-
-                @Override
-                public List<String> getNestedPlaceholders(@NonNull String output) {
-                    return nested;
-                }
-            });
+            Animation a = new Animation(
+                    (PlaceholderManagerImpl) manager,
+                    s.toString(),
+                    TAB.getInstance().getConfiguration().getAnimationFile().getStringList(s + ".texts"),
+                    TAB.getInstance().getConfiguration().getAnimationFile().getInt(s + ".change-interval", 0)
+            );
+            manager.registerPlayerPlaceholder(TabConstants.Placeholder.animation(a.getName()), a.getRefresh(), p -> a.getMessage());
         }
         Condition.clearConditions();
         Map<String, Map<Object, Object>> conditions = TAB.getInstance().getConfiguration().getConfig().getConfigurationSection("conditions");
@@ -86,7 +119,7 @@ public class UniversalPlaceholderRegistry implements PlaceholderRegistry {
             String yes = condition.getValue().getOrDefault(true, true).toString();
             String no = condition.getValue().getOrDefault(false, false).toString();
             if (list == null) {
-                TAB.getInstance().getMisconfigurationHelper().conditionHasNoConditions(condition.getKey());
+                TAB.getInstance().getConfigHelper().startup().conditionHasNoConditions(condition.getKey());
                 continue;
             }
             Condition c = new Condition(!"OR".equals(type), condition.getKey(), list, yes, no);
@@ -124,7 +157,7 @@ public class UniversalPlaceholderRegistry implements PlaceholderRegistry {
         try {
             return new SimpleDateFormat(value, Locale.ENGLISH);
         } catch (IllegalArgumentException e) {
-            TAB.getInstance().getMisconfigurationHelper().invalidDateFormat(value);
+            TAB.getInstance().getConfigHelper().startup().invalidDateFormat(value);
             return new SimpleDateFormat(defaultValue);
         }
     }

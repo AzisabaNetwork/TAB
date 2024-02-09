@@ -9,7 +9,7 @@ import com.mojang.brigadier.tree.ArgumentCommandNode;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -18,8 +18,17 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Command handler for plugin's command for Fabric.
+ */
 public class FabricTabCommand {
 
+    /**
+     * Handles command register request from server and registers own command.
+     *
+     * @param   dispatcher
+     *          Dispatcher to register command to
+     */
     public void onRegisterCommands(@NotNull CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralCommandNode<CommandSourceStack> command = Commands.literal(TabConstants.COMMAND_BACKEND)
                 .executes(context -> executeCommand(context.getSource(), new String[0]))
@@ -46,12 +55,15 @@ public class FabricTabCommand {
         return args;
     }
 
+    @SuppressWarnings("SameReturnValue") // Unused by plugin
     private int executeCommand(@NotNull CommandSourceStack source, @NotNull String[] args) {
+        FabricPlatform platform = (FabricPlatform) TAB.getInstance().getPlatform();
         if (TAB.getInstance().isPluginDisabled()) {
-            boolean hasReloadPermission = FabricTAB.hasPermission(source, TabConstants.Permission.COMMAND_RELOAD);
-            boolean hasAdminPermission = FabricTAB.hasPermission(source, TabConstants.Permission.COMMAND_ALL);
+            boolean hasReloadPermission = platform.hasPermission(source, TabConstants.Permission.COMMAND_RELOAD);
+            boolean hasAdminPermission = platform.hasPermission(source, TabConstants.Permission.COMMAND_ALL);
             for (String message : TAB.getInstance().getDisabledCommand().execute(args, hasReloadPermission, hasAdminPermission)) {
-                source.sendSystemMessage(((FabricPlatform)TAB.getInstance().getPlatform()).toComponent(IChatBaseComponent.optimizedComponent(message), TAB.getInstance().getServerVersion()));
+                FabricMultiVersion.sendMessage2.accept(source, platform.toComponent(
+                        TabComponent.optimized(message), platform.getServerVersion()));
             }
         } else {
             if (source.getEntity() == null) {

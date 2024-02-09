@@ -1,13 +1,14 @@
 package me.neznamy.tab.shared.platform;
 
 import me.neznamy.tab.shared.GroupManager;
-import me.neznamy.tab.shared.ProtocolVersion;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.TabConstants;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.features.bossbar.BossBarManagerImpl;
 import me.neznamy.tab.shared.features.injection.PipelineInjector;
 import me.neznamy.tab.shared.features.nametags.NameTag;
 import me.neznamy.tab.shared.features.redis.RedisSupport;
 import me.neznamy.tab.shared.features.types.TabFeature;
+import me.neznamy.tab.shared.hook.PremiumVanishHook;
 import me.neznamy.tab.shared.placeholders.expansion.TabExpansion;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -16,9 +17,9 @@ import java.io.File;
 
 /**
  * An interface with methods that are called in universal code,
- * but require platform-specific API calls
+ * but require platform-specific API calls.
  */
-public interface Platform<T> {
+public interface Platform {
 
     /**
      * Detects permission plugin and returns its representing object
@@ -28,11 +29,11 @@ public interface Platform<T> {
     @NotNull GroupManager detectPermissionPlugin();
 
     /**
-     * Returns bossbar feature for servers 1.8 and lower
+     * Returns bossbar feature.
      *
-     * @return  bossbar feature for 1.8 and lower
+     * @return  bossbar feature
      */
-    default @NotNull BossBarManagerImpl getLegacyBossBar() {
+    default @NotNull BossBarManagerImpl getBossBar() {
         return new BossBarManagerImpl();
     }
 
@@ -98,7 +99,7 @@ public interface Platform<T> {
      * @param   message
      *          Message to send
      */
-    void logInfo(@NotNull IChatBaseComponent message);
+    void logInfo(@NotNull TabComponent message);
 
     /**
      * Sends a red console message with TAB's prefix using logger with warn type if available,
@@ -107,7 +108,7 @@ public interface Platform<T> {
      * @param   message
      *          Message to send
      */
-    void logWarn(@NotNull IChatBaseComponent message);
+    void logWarn(@NotNull TabComponent message);
 
     /**
      * Returns information about server version, which is displayed in debug command
@@ -132,13 +133,6 @@ public interface Platform<T> {
     void startMetrics();
 
     /**
-     * Returns server's version
-     *
-     * @return  server's version
-     */
-    ProtocolVersion getServerVersion();
-
-    /**
      * Returns plugin's data folder for configuration files
      *
      * @return  plugin's data folder
@@ -146,13 +140,24 @@ public interface Platform<T> {
     File getDataFolder();
 
     /**
-     * Converts internal component class to platform's component class
+     * Returns {@code true} if this platform is a proxy, {@code false} if not.
      *
-     * @param   component
-     *          Component to convert
-     * @param   version
-     *          Game version to convert component for
-     * @return  Converted component
+     * @return  {@code true} if this platform is a proxy, {@code false} if not
      */
-    T toComponent(@NotNull IChatBaseComponent component, @NotNull ProtocolVersion version);
+    boolean isProxy();
+
+    /**
+     * Returns {@code true} if the viewer can see the target, {@code false} otherwise.
+     * This includes all vanish, permission & plugin API checks.
+     *
+     * @param   viewer
+     *          Player who is viewing
+     * @param   target
+     *          Player who is being viewed
+     * @return  {@code true} if can see, {@code false} if not.
+     */
+    default boolean canSee(@NotNull TabPlayer viewer, @NotNull TabPlayer target) {
+        if (PremiumVanishHook.getInstance() != null && PremiumVanishHook.getInstance().canSee(viewer, target)) return true;
+        return !target.isVanished() || viewer.hasPermission(TabConstants.Permission.SEE_VANISHED);
+    }
 }

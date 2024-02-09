@@ -2,9 +2,9 @@ package me.neznamy.tab.shared.platform;
 
 import lombok.Getter;
 import lombok.Setter;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.SimpleComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.hook.FloodgateHook;
-import me.neznamy.tab.shared.platform.bossbar.BossBar;
 import me.neznamy.tab.shared.*;
 import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.event.impl.PlayerLoadEventImpl;
@@ -21,7 +21,7 @@ import java.util.*;
 public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
 
     /** Platform reference */
-    protected final Platform<?> platform;
+    protected final Platform platform;
 
     /** Platform-specific player object instance */
     @Setter protected Object player;
@@ -48,7 +48,7 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
     @Getter @Setter private String server;
 
     /** Player's permission group defined in permission plugin or with permission nodes */
-    private String permissionGroup;
+    private String permissionGroup = TabConstants.NO_GROUP;
 
     /** Player's permission group override using API */
     private String temporaryGroup;
@@ -86,20 +86,19 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
      * @param   useRealId
      *          Whether tablist uses real uuid or offline
      */
-    protected TabPlayer(@NotNull Platform<?> platform, @NotNull Object player, @NotNull UUID uniqueId, @NotNull String name,
+    protected TabPlayer(@NotNull Platform platform, @NotNull Object player, @NotNull UUID uniqueId, @NotNull String name,
                         @NotNull String server, @NotNull String world, int protocolVersion, boolean useRealId) {
         this.platform = platform;
         this.player = player;
         this.uniqueId = uniqueId;
         this.name = name;
-        this.nickname = name;
         this.server = server;
         this.world = world;
-        this.version = ProtocolVersion.fromNetworkId(protocolVersion);
-        this.bedrockPlayer = FloodgateHook.getInstance().isFloodgatePlayer(uniqueId, name);
-        this.permissionGroup = TAB.getInstance().getGroupManager().detectPermissionGroup(this);
-        UUID offlineId = UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
-        this.tablistId = useRealId ? getUniqueId() : offlineId;
+        nickname = name;
+        version = ProtocolVersion.fromNetworkId(protocolVersion);
+        bedrockPlayer = FloodgateHook.getInstance().isFloodgatePlayer(uniqueId, name);
+        permissionGroup = TAB.getInstance().getGroupManager().detectPermissionGroup(this);
+        tablistId = useRealId ? uniqueId : UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -193,14 +192,12 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
      *          whether colors should be translated or not
      */
     public void sendMessage(@NotNull String message, boolean translateColors) {
-        if (message.length() == 0) return;
-        IChatBaseComponent component;
+        if (message.isEmpty()) return;
         if (translateColors) {
-            component = IChatBaseComponent.fromColoredText(message);
+            sendMessage(TabComponent.fromColoredText(message));
         } else {
-            component = new IChatBaseComponent(message);
+            sendMessage(new SimpleComponent(message));
         }
-        sendMessage(component);
     }
 
     public void forceRefresh() {
@@ -208,6 +205,13 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
         TAB.getInstance().getFeatureManager().refresh(this, true);
     }
 
+    /**
+     * Returns property with given name.
+     *
+     * @param   name
+     *          Name of the property
+     * @return  Property with given name
+     */
     public Property getProperty(@NotNull String name) {
         return properties.get(name);
     }
@@ -220,6 +224,8 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
     /**
      * Loads property from config using standard property loading algorithm
      *
+     * @param   feature
+     *          Feature using this property
      * @param   property
      *          property name to load
      * @return  {@code true} if value did not exist or changed, {@code false} otherwise
@@ -232,6 +238,8 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
      * Loads property from config using standard property loading algorithm. If the property is
      * not set in config, {@code ifNotSet} value is used.
      *
+     * @param   feature
+     *          Feature using this property
      * @param   property
      *          property name to load
      * @param   ifNotSet
@@ -239,9 +247,9 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
      * @return  {@code true} if value did not exist or changed, {@code false} otherwise
      */
     public boolean loadPropertyFromConfig(@Nullable Refreshable feature, @NotNull String property, @NotNull String ifNotSet) {
-        String[] value = TAB.getInstance().getConfiguration().getUsers().getProperty(getName(), property, server, world);
+        String[] value = TAB.getInstance().getConfiguration().getUsers().getProperty(name, property, server, world);
         if (value.length == 0) {
-            value = TAB.getInstance().getConfiguration().getUsers().getProperty(getUniqueId().toString(), property, server, world);
+            value = TAB.getInstance().getConfiguration().getUsers().getProperty(uniqueId.toString(), property, server, world);
         }
         if (value.length == 0) {
             value = TAB.getInstance().getConfiguration().getGroups().getProperty(getGroup(), property, server, world);
@@ -322,7 +330,7 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
      * @param   message
      *          message to send
      */
-    public abstract void sendMessage(@NotNull IChatBaseComponent message);
+    public abstract void sendMessage(@NotNull TabComponent message);
 
     /**
      * Performs platform-specific API call to check for permission and returns the result
@@ -345,5 +353,5 @@ public abstract class TabPlayer implements me.neznamy.tab.api.TabPlayer {
      *
      * @return  Server platform
      */
-    public abstract Platform<?> getPlatform();
+    public abstract Platform getPlatform();
 }

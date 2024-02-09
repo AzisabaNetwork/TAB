@@ -2,6 +2,7 @@ package me.neznamy.tab.shared.features.bossbar;
 
 import lombok.Getter;
 import lombok.NonNull;
+import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.TabConstants;
 import me.neznamy.tab.api.bossbar.BarColor;
 import me.neznamy.tab.api.bossbar.BarStyle;
@@ -19,7 +20,7 @@ import java.util.stream.Collectors;
  * Class for handling BossBar feature
  */
 public class BossBarManagerImpl extends TabFeature implements BossBarManager, JoinListener, CommandListener, Loadable,
-        UnLoadable, Refreshable {
+        UnLoadable, Refreshable, LoginPacketListener {
 
     //default BossBars
     private final List<String> defaultBars = new ArrayList<>();
@@ -29,9 +30,9 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
     protected BossBar[] lineValues;
 
     //config options
-    @Getter private final String toggleCommand = TAB.getInstance().getConfiguration().getConfig().getString("bossbar.toggle-command", "/bossbar");
-    private final boolean hiddenByDefault = TAB.getInstance().getConfiguration().getConfig().getBoolean("bossbar.hidden-by-default", false);
-    private final boolean rememberToggleChoice = TAB.getInstance().getConfiguration().getConfig().getBoolean("bossbar.remember-toggle-choice", false);
+    @Getter private final String toggleCommand = config().getString("bossbar.toggle-command", "/bossbar");
+    private final boolean hiddenByDefault = config().getBoolean("bossbar.hidden-by-default", false);
+    private final boolean rememberToggleChoice = config().getBoolean("bossbar.remember-toggle-choice", false);
     private final String toggleOnMessage = TAB.getInstance().getConfiguration().getMessages().getBossBarOn();
     private final String toggleOffMessage = TAB.getInstance().getConfiguration().getMessages().getBossBarOff();
 
@@ -54,7 +55,7 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
      * Constructs new instance and loads configuration
      */
     public BossBarManagerImpl() {
-        for (Object bar : TAB.getInstance().getConfiguration().getConfig().getConfigurationSection("bossbar.bars").keySet()) {
+        for (Object bar : config().getConfigurationSection("bossbar.bars").keySet()) {
             BossBarLine line = loadFromConfig(bar.toString());
             registeredBossBars.put(bar.toString(), line);
             if (!line.isAnnouncementBar()) defaultBars.add(bar.toString());
@@ -70,8 +71,8 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
      * @return  loaded BossBar
      */
     private @NotNull BossBarLine loadFromConfig(@NonNull String bar) {
-        Map<String, Object> bossBar = TAB.getInstance().getConfiguration().getConfig().getConfigurationSection("bossbar.bars." + bar);
-        TAB.getInstance().getMisconfigurationHelper().checkBossBarProperties(bossBar, bar);
+        Map<String, Object> bossBar = config().getConfigurationSection("bossbar.bars." + bar);
+        TAB.getInstance().getConfigHelper().startup().checkBossBarProperties(bossBar, bar);
         return new BossBarLine(
                 this,
                 bar,
@@ -200,11 +201,15 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
             if (sendToggleMessage) player.sendMessage(toggleOnMessage, true);
             if (rememberToggleChoice) {
                 if (hiddenByDefault) {
-                    if (!bossBarOffPlayers.contains(player.getName())) bossBarOffPlayers.add(player.getName());
+                    if (!bossBarOffPlayers.contains(player.getName())) {
+                        bossBarOffPlayers.add(player.getName());
+                        savePlayers();
+                    }
                 } else {
-                    bossBarOffPlayers.remove(player.getName());
+                    if (bossBarOffPlayers.remove(player.getName())) {
+                        savePlayers();
+                    }
                 }
-                TAB.getInstance().getConfiguration().getPlayerDataFile().set("bossbar-off", new ArrayList<>(bossBarOffPlayers));
             }
         } else {
             visiblePlayers.remove(player);
@@ -214,14 +219,24 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
             if (sendToggleMessage) player.sendMessage(toggleOffMessage, true);
             if (rememberToggleChoice) {
                 if (hiddenByDefault) {
-                    bossBarOffPlayers.remove(player.getName());
+                    if (bossBarOffPlayers.remove(player.getName())) {
+                        savePlayers();
+                    }
                 } else {
-                    if (!bossBarOffPlayers.contains(player.getName())) bossBarOffPlayers.add(player.getName());
+                    if (!bossBarOffPlayers.contains(player.getName())) {
+                        bossBarOffPlayers.add(player.getName());
+                        savePlayers();
+                    }
                 }
-                TAB.getInstance().getConfiguration().getPlayerDataFile().set("bossbar-off", new ArrayList<>(bossBarOffPlayers));
             }
         }
         TAB.getInstance().getPlaceholderManager().getTabExpansion().setBossBarVisible(player, visible);
+    }
+
+    private void savePlayers() {
+        synchronized (bossBarOffPlayers) {
+            TAB.getInstance().getConfiguration().getPlayerDataFile().set("bossbar-off", new ArrayList<>(bossBarOffPlayers));
+        }
     }
 
     @Override
@@ -229,7 +244,7 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
         if (!hasBossBarVisible(player)) return;
         BossBar line = registeredBossBars.get(bossBar);
         if (line == null) throw new IllegalArgumentException("No registered BossBar found with name " + bossBar);
-        TAB.getInstance().getCPUManager().runTask(() -> line.addPlayer(player));
+        TAB.getInstance().getCPUManager().runMeasuredTask(featureName, "Adding temporary BossBar", () -> line.addPlayer(player));
         TAB.getInstance().getCPUManager().runTaskLater(duration*1000,
                 featureName, "Removing temporary BossBar", () -> line.removePlayer(player));
     }
@@ -240,7 +255,7 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
         if (line == null) throw new IllegalArgumentException("No registered BossBar found with name " + bossBar);
         List<TabPlayer> players = Arrays.stream(TAB.getInstance().getOnlinePlayers()).filter(
                 this::hasBossBarVisible).collect(Collectors.toList());
-        TAB.getInstance().getCPUManager().runTask(() -> {
+        TAB.getInstance().getCPUManager().runMeasuredTask(featureName, "Adding announced BossBar", () -> {
             announcedBossBars.add(line);
             announceEndTime = System.currentTimeMillis() + duration* 1000L;
             for (TabPlayer all : players) {
@@ -254,5 +269,17 @@ public class BossBarManagerImpl extends TabFeature implements BossBarManager, Jo
             }
             announcedBossBars.remove(line);
         });
+    }
+
+    @Override
+    public void onLoginPacket(TabPlayer player) {
+        // Since 1.20.2, Login packet clears BossBars as well
+        if (player.getVersion().getNetworkId() >= ProtocolVersion.V1_20_2.getNetworkId()) {
+            for (BossBar bar : lineValues) {
+                if (bar.containsPlayer(player)) {
+                    ((BossBarLine)bar).sendToPlayerRaw(player);
+                }
+            }
+        }
     }
 }

@@ -6,7 +6,8 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.SimpleComponent;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
@@ -42,7 +43,7 @@ public abstract class SubCommand {
      *          subcommand to register
      */
     public void registerSubCommand(@NotNull SubCommand subcommand) {
-        getSubcommands().put(subcommand.getName(), subcommand);
+        subcommands.put(subcommand.name, subcommand);
     }
 
     /**
@@ -93,11 +94,11 @@ public abstract class SubCommand {
      *          the message to sent
      */
     public void sendMessage(@Nullable TabPlayer sender, @NotNull String message) {
-        if (message.length() == 0) return;
+        if (message.isEmpty()) return;
         if (sender != null) {
             sender.sendMessage(message, true);
         } else {
-            TAB.getInstance().getPlatform().logInfo(IChatBaseComponent.fromColoredText(message));
+            TAB.getInstance().getPlatform().logInfo(TabComponent.fromColoredText(message));
         }
     }
 
@@ -110,11 +111,11 @@ public abstract class SubCommand {
      *          the message to sent
      */
     public void sendRawMessage(@Nullable TabPlayer sender, @NotNull String message) {
-        if (message.length() == 0) return;
+        if (message.isEmpty()) return;
         if (sender != null) {
             sender.sendMessage(message, false);
         } else {
-            TAB.getInstance().getPlatform().logInfo(new IChatBaseComponent(message));
+            TAB.getInstance().getPlatform().logInfo(new SimpleComponent(message));
         }
     }
 
@@ -155,12 +156,12 @@ public abstract class SubCommand {
         }
         if (arguments.length < 2) {
             List<String> suggestions = new ArrayList<>();
-            for (String subcommand : getSubcommands().keySet()) {
+            for (String subcommand : subcommands.keySet()) {
                 if (subcommand.startsWith(argument)) suggestions.add(subcommand);
             }
             return suggestions;
         }
-        SubCommand subcommand = getSubcommands().get(argument);
+        SubCommand subcommand = subcommands.get(argument);
         if (subcommand != null) {
             return subcommand.complete(sender, Arrays.copyOfRange(arguments, 1, arguments.length));
         }

@@ -1,7 +1,8 @@
 package me.neznamy.tab.platforms.bungeecord.tablist;
 
 import me.neznamy.tab.platforms.bungeecord.BungeeTabPlayer;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.Limitations;
+import me.neznamy.tab.shared.chat.TabComponent;
 import net.md_5.bungee.protocol.packet.PlayerListItem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -28,6 +29,12 @@ public class BungeeTabList17 extends BungeeTabList {
     @NotNull
     private final Map<UUID, String> displayNames = new HashMap<>();
 
+    /**
+     * Constructs new instance with given parameters.
+     *
+     * @param   player
+     *          Player this tablist will belong to
+     */
     public BungeeTabList17(@NotNull BungeeTabPlayer player) {
         super(player);
     }
@@ -44,10 +51,10 @@ public class BungeeTabList17 extends BungeeTabList {
     }
 
     @Override
-    public void updateDisplayName(@NotNull UUID entry, @Nullable IChatBaseComponent displayName) {
+    public void updateDisplayName(@NotNull UUID entry, @Nullable TabComponent displayName) {
         if (!displayNames.containsKey(entry)) return; // Entry not tracked by TAB
         update(PlayerListItem.Action.REMOVE_PLAYER, createItem(null, displayNames.get(entry), 0));
-        addEntry(new Entry.Builder(entry).displayName(displayName).name(userNames.get(entry)).build());
+        addEntry(new Entry(entry, userNames.get(entry), null, 0, 0, displayName));
     }
 
     @Override
@@ -62,13 +69,19 @@ public class BungeeTabList17 extends BungeeTabList {
     @Override
     public void addEntry(@NotNull Entry entry) {
         addUuid(entry.getUniqueId());
-        String displayNameString = entry.getDisplayName() == null ? String.valueOf(entry.getName()) : entry.getDisplayName().toLegacyText();
-        if (displayNameString.length() > 16) displayNameString = displayNameString.substring(0, 16); // 16 character limit
+        String displayNameString = entry.getDisplayName() == null ? entry.getName() : entry.getDisplayName().toLegacyText();
+        if (displayNameString.length() > Limitations.MAX_DISPLAY_NAME_LENGTH_1_7)
+            displayNameString = displayNameString.substring(0, Limitations.MAX_DISPLAY_NAME_LENGTH_1_7);
         update(PlayerListItem.Action.ADD_PLAYER, createItem(entry.getName(), displayNameString, entry.getLatency()));
 
         // Add to map
         userNames.put(entry.getUniqueId(), entry.getName());
         displayNames.put(entry.getUniqueId(), displayNameString);
+    }
+
+    @Override
+    public void setPlayerListHeaderFooter(@NotNull TabComponent header, @NotNull TabComponent footer) {
+        // Not available on 1.7
     }
 
     private void update(@NotNull PlayerListItem.Action action, @NotNull PlayerListItem.Item item) {
@@ -81,8 +94,8 @@ public class BungeeTabList17 extends BungeeTabList {
     private PlayerListItem.Item createItem(@Nullable String username, @NotNull String displayName, int latency) {
         PlayerListItem.Item item = new PlayerListItem.Item();
         item.setUsername(username);
-        item.setDisplayName(displayName);
         item.setPing(latency);
+        item.setDisplayName(player.getPlatform().toComponent(TabComponent.optimized(displayName), player.getVersion()));
         return item;
     }
 }

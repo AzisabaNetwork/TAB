@@ -27,19 +27,7 @@ public class Texture extends SkinSource {
     @Override
     public @NotNull List<String> download(@NotNull String texture) {
         try {
-            URL url = new URL("https://api.mineskin.org/generate/url/");
-            HttpURLConnection con = (HttpURLConnection) url.openConnection();
-            con.setRequestProperty("User-Agent", "ExampleApp/v1.0");
-            con.setRequestProperty("Content-Type", "application/json");
-            con.setRequestMethod("POST");
-            con.setDoOutput(true);
-            String jsonInputString = "{\"variant\":\"classic\",\"name\":\"string\",\"visibility\":0,\"url\":\"https://textures.minecraft.net/texture/" + texture + "\"}";
-            try (OutputStream os = con.getOutputStream()) {
-                byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
-                os.write(input, 0, input.length);
-            }
-
-            InputStreamReader reader = new InputStreamReader(con.getInputStream());
+            InputStreamReader reader = getInputStreamReader(texture);
             JSONObject json = (JSONObject) new JSONParser().parse(reader);
             JSONObject data = (JSONObject) json.get("data");
             JSONObject texture2 = (JSONObject) data.get("texture");
@@ -47,8 +35,24 @@ public class Texture extends SkinSource {
             String signature = (String) texture2.get("signature");
             return Arrays.asList(value, signature);
         } catch (IOException | ParseException e) {
-            TAB.getInstance().getErrorManager().printError("Failed to load skin by texture: " + e.getMessage(), e);
+            TAB.getInstance().getErrorManager().textureSkinDownloadError(texture, e);
             return Collections.emptyList();
         }
+    }
+
+    @NotNull
+    private static InputStreamReader getInputStreamReader(@NotNull String texture) throws IOException {
+        URL url = new URL("https://api.mineskin.org/generate/url/");
+        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+        con.setRequestProperty("User-Agent", "ExampleApp/v1.0");
+        con.setRequestProperty("Content-Type", "application/json");
+        con.setRequestMethod("POST");
+        con.setDoOutput(true);
+        String jsonInputString = "{\"variant\":\"classic\",\"name\":\"string\",\"visibility\":0,\"url\":\"https://textures.minecraft.net/texture/" + texture + "\"}";
+        try (OutputStream os = con.getOutputStream()) {
+            byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
+            os.write(input, 0, input.length);
+        }
+        return new InputStreamReader(con.getInputStream());
     }
 }

@@ -3,9 +3,8 @@ package me.neznamy.tab.platforms.bukkit.bossbar;
 import lombok.RequiredArgsConstructor;
 import me.neznamy.tab.api.bossbar.BarColor;
 import me.neznamy.tab.api.bossbar.BarStyle;
-import me.neznamy.tab.platforms.bukkit.BukkitUtils;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
-import me.neznamy.tab.shared.platform.bossbar.BossBar;
+import me.neznamy.tab.shared.chat.TabComponent;
+import me.neznamy.tab.shared.platform.BossBar;
 import me.neznamy.tab.platforms.bukkit.BukkitTabPlayer;
 import org.bukkit.Bukkit;
 import org.jetbrains.annotations.NotNull;
@@ -21,6 +20,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BukkitBossBar implements BossBar {
 
+    /** Style array for fast access */
+    private static final org.bukkit.boss.BarStyle[] styles = org.bukkit.boss.BarStyle.values();
+    
     /** Player this handler belongs to */
     @NotNull
     private final BukkitTabPlayer player;
@@ -33,9 +35,10 @@ public class BukkitBossBar implements BossBar {
     public void create(@NotNull UUID id, @NotNull String title, float progress, @NotNull BarColor color, @NotNull BarStyle style) {
         if (bossBars.containsKey(id)) return;
         org.bukkit.boss.BossBar bar = Bukkit.createBossBar(
-                BukkitUtils.toBukkitFormat(IChatBaseComponent.optimizedComponent(title), player.getVersion().getMinorVersion() >= 16),
+                player.getPlatform().toBukkitFormat(TabComponent.optimized(title), player.getVersion().supportsRGB()),
                 org.bukkit.boss.BarColor.valueOf(color.name()),
-                org.bukkit.boss.BarStyle.valueOf(style.getBukkitName()));
+                styles[style.ordinal()]
+        );
         bar.setProgress(progress);
         bar.addPlayer(player.getPlayer());
         bossBars.put(id, bar);
@@ -43,7 +46,7 @@ public class BukkitBossBar implements BossBar {
 
     @Override
     public void update(@NotNull UUID id, @NotNull String title) {
-        bossBars.get(id).setTitle(BukkitUtils.toBukkitFormat(IChatBaseComponent.optimizedComponent(title), player.getVersion().getMinorVersion() >= 16));
+        bossBars.get(id).setTitle(player.getPlatform().toBukkitFormat(TabComponent.optimized(title), player.getVersion().supportsRGB()));
     }
 
     @Override
@@ -53,7 +56,7 @@ public class BukkitBossBar implements BossBar {
 
     @Override
     public void update(@NotNull UUID id, @NotNull BarStyle style) {
-        bossBars.get(id).setStyle(org.bukkit.boss.BarStyle.valueOf(style.getBukkitName()));
+        bossBars.get(id).setStyle(styles[style.ordinal()]);
     }
 
     @Override

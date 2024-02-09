@@ -8,7 +8,6 @@ import java.util.*;
 import me.neznamy.tab.shared.TabConstants;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.yaml.snakeyaml.error.YAMLException;
 
 import me.neznamy.tab.shared.config.PropertyConfiguration;
 import me.neznamy.tab.shared.TAB;
@@ -22,7 +21,7 @@ public class YamlPropertyConfigurationFile extends YamlConfigurationFile impleme
     private final List<Object> worldGroups = new ArrayList<>(getConfigurationSection(PER_WORLD).keySet());
     private final List<Object> serverGroups = new ArrayList<>(getConfigurationSection(PER_SERVER).keySet());
     
-    public YamlPropertyConfigurationFile(@Nullable InputStream source, @NotNull File destination) throws YAMLException, IOException {
+    public YamlPropertyConfigurationFile(@Nullable InputStream source, @NotNull File destination) throws IOException {
         super(source, destination);
         category = destination.getName().contains("groups") ? "group" : "user";
     }
@@ -47,10 +46,10 @@ public class YamlPropertyConfigurationFile extends YamlConfigurationFile impleme
         if ((value = getObject(new String[] {PER_WORLD, TAB.getInstance().getConfiguration().getGroup(worldGroups, world), TabConstants.DEFAULT_GROUP, property})) != null) {
             return new String[] {toString(value), category + "=" + TabConstants.DEFAULT_GROUP + ", world=" + world};
         }
-        if ((value = getObject(new String[] {PER_SERVER, TAB.getInstance().getConfiguration().getGroup(serverGroups, server), name, property})) != null) {
+        if ((value = getObject(new String[] {PER_SERVER, TAB.getInstance().getConfiguration().getServerGroup(serverGroups, server), name, property})) != null) {
             return new String[] {toString(value), category + "=" + name + ", server=" + server};
         }
-        if ((value = getObject(new String[] {PER_SERVER, TAB.getInstance().getConfiguration().getGroup(serverGroups, server), TabConstants.DEFAULT_GROUP, property})) != null) {
+        if ((value = getObject(new String[] {PER_SERVER, TAB.getInstance().getConfiguration().getServerGroup(serverGroups, server), TabConstants.DEFAULT_GROUP, property})) != null) {
             return new String[] {toString(value), category + "=" + TabConstants.DEFAULT_GROUP + ", server=" + server};
         }
         if ((value = getObject(new String[] {name, property})) != null) {

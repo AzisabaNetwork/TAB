@@ -2,18 +2,19 @@ package me.neznamy.tab.shared.config.file;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
 
 import lombok.NonNull;
 import me.neznamy.tab.shared.TAB;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
+import me.neznamy.tab.shared.chat.EnumChatFormat;
+import me.neznamy.tab.shared.chat.SimpleComponent;
 import org.jetbrains.annotations.Nullable;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -43,7 +44,7 @@ public class YamlConfigurationFile extends ConfigurationFile {
      * @throws  IOException
      *          if I/O operation with the file unexpectedly fails
      */
-    public YamlConfigurationFile(@Nullable InputStream source, @NonNull File destination) throws YAMLException, IOException {
+    public YamlConfigurationFile(@Nullable InputStream source, @NonNull File destination) throws IOException {
         super(source, destination);
         FileInputStream input = null;
         try {
@@ -55,13 +56,13 @@ public class YamlConfigurationFile extends ConfigurationFile {
             if (input != null) input.close();
             TAB tab = TAB.getInstance();
             tab.setBrokenFile(destination.getName());
-            tab.getPlatform().logWarn(new IChatBaseComponent("File " + destination + " has broken syntax."));
-            tab.getPlatform().logInfo(IChatBaseComponent.fromColoredText("&6Error message from yaml parser: " + e.getMessage()));
+            tab.getPlatform().logWarn(new SimpleComponent("File " + destination + " has broken syntax."));
+            tab.getPlatform().logInfo(new SimpleComponent(EnumChatFormat.GOLD + "Error message from yaml parser: " + e.getMessage()));
             List<String> suggestions = YamlAssist.getSuggestions(file);
             if (!suggestions.isEmpty()) {
-                tab.getPlatform().logInfo(IChatBaseComponent.fromColoredText("&dSuggestions to fix yaml syntax:"));
+                tab.getPlatform().logInfo(new SimpleComponent(EnumChatFormat.LIGHT_PURPLE + "Suggestions to fix yaml syntax:"));
                 for (String suggestion : suggestions) {
-                    tab.getPlatform().logInfo(IChatBaseComponent.fromColoredText("&d- " + suggestion));
+                    tab.getPlatform().logInfo(new SimpleComponent(EnumChatFormat.LIGHT_PURPLE + "- " + suggestion));
                 }
             }
             throw e;
@@ -71,14 +72,14 @@ public class YamlConfigurationFile extends ConfigurationFile {
     @Override
     public void save() {
         try {
-            Writer writer = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8);
+            Writer writer = new OutputStreamWriter(Files.newOutputStream(file.toPath()), StandardCharsets.UTF_8);
             DumperOptions options = new DumperOptions();
             options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
             new Yaml(options).dump(values, writer);
             writer.close();
             fixHeader();
         } catch (IOException e) {
-            TAB.getInstance().getPlatform().logWarn(new IChatBaseComponent("Failed to save yaml file " + file.getPath() + " with content " + values.toString()));
+            TAB.getInstance().getPlatform().logWarn(new SimpleComponent("Failed to save yaml file " + file.getPath() + " with content " + values.toString()));
         }
     }
 }

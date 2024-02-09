@@ -6,7 +6,6 @@ import java.util.List;
 
 import com.google.common.collect.Lists;
 
-import me.neznamy.tab.shared.ProtocolVersion;
 import me.neznamy.tab.shared.command.bossbar.BossBarCommand;
 import me.neznamy.tab.shared.command.scoreboard.ScoreboardCommand;
 import me.neznamy.tab.shared.platform.TabPlayer;
@@ -38,8 +37,6 @@ public class TabCommand extends SubCommand {
         registerSubCommand(new ReloadCommand());
         registerSubCommand(new SetCollisionCommand());
         registerSubCommand(new ScoreboardCommand());
-        registerSubCommand(new WidthCommand());
-        registerSubCommand(new WidthCheckCommand());
         List<String> properties = Lists.newArrayList(TabConstants.Property.TABPREFIX, TabConstants.Property.TABSUFFIX, TabConstants.Property.TAGPREFIX, TabConstants.Property.TAGSUFFIX, TabConstants.Property.CUSTOMTABNAME, TabConstants.Property.ABOVENAME, TabConstants.Property.BELOWNAME, TabConstants.Property.CUSTOMTAGNAME);
         properties.addAll(((DebugCommand) getSubcommands().get("debug")).getExtraLines());
         SubCommand.setAllProperties(properties);
@@ -74,7 +71,7 @@ public class TabCommand extends SubCommand {
         if (hasPermission(sender, TabConstants.Permission.COMMAND_ALL)) {
             sendMessage(sender, "&3TAB v" + TabConstants.PLUGIN_VERSION);
             for (String message : getMessages().getHelpMenu()) {
-                if (TAB.getInstance().getServerVersion() == ProtocolVersion.PROXY)
+                if (TAB.getInstance().getPlatform().isProxy())
                     message = message.replace("/" + TabConstants.COMMAND_BACKEND, "/" + TabConstants.COMMAND_PROXY);
                 sendMessage(sender, message);
             }

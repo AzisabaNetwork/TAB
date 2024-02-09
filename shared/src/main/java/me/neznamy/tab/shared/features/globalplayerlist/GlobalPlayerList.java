@@ -3,8 +3,8 @@ package me.neznamy.tab.shared.features.globalplayerlist;
 import java.util.*;
 
 import lombok.Getter;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
 import me.neznamy.tab.shared.TabConstants;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.TabList;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.platform.TabPlayer;
@@ -16,22 +16,27 @@ import org.jetbrains.annotations.NotNull;
  * Feature handler for global PlayerList feature
  */
 public class GlobalPlayerList extends TabFeature implements JoinListener, QuitListener, VanishListener, GameModeListener,
-        Loadable, UnLoadable, ServerSwitchListener {
+        Loadable, UnLoadable, ServerSwitchListener, TabListClearListener {
 
     // config options
-    private final List<String> spyServers = TAB.getInstance().getConfiguration().getConfig().getStringList("global-playerlist.spy-servers", Collections.singletonList("spyserver1"));
-    private final Map<String, List<String>> sharedServers = TAB.getInstance().getConfiguration().getConfig().getConfigurationSection("global-playerlist.server-groups");
-    private final boolean othersAsSpectators = TAB.getInstance().getConfiguration().getConfig().getBoolean("global-playerlist.display-others-as-spectators", false);
-    private final boolean vanishedAsSpectators = TAB.getInstance().getConfiguration().getConfig().getBoolean("global-playerlist.display-vanished-players-as-spectators", true);
-    private final boolean isolateUnlistedServers = TAB.getInstance().getConfiguration().getConfig().getBoolean("global-playerlist.isolate-unlisted-servers", false);
+    private final List<String> spyServers = config().getStringList("global-playerlist.spy-servers", Collections.singletonList("spyserver1"));
+    private final Map<String, List<String>> sharedServers = config().getConfigurationSection("global-playerlist.server-groups");
+    private final boolean othersAsSpectators = config().getBoolean("global-playerlist.display-others-as-spectators", false);
+    private final boolean vanishedAsSpectators = config().getBoolean("global-playerlist.display-vanished-players-as-spectators", true);
+    private final boolean isolateUnlistedServers = config().getBoolean("global-playerlist.isolate-unlisted-servers", false);
 
     private final PlayerList playerlist = TAB.getInstance().getFeatureManager().getFeature(TabConstants.Feature.PLAYER_LIST);
     @Getter private final String featureName = "Global PlayerList";
 
     public GlobalPlayerList() {
         for (Map.Entry<String, List<String>> entry : sharedServers.entrySet()) {
-            TAB.getInstance().getPlaceholderManager().registerServerPlaceholder(TabConstants.Placeholder.globalPlayerListGroup(entry.getKey()), 1000,
-                    () -> Arrays.stream(TAB.getInstance().getOnlinePlayers()).filter(p -> entry.getValue().contains(p.getServer()) && !p.isVanished()).count());
+            TAB.getInstance().getPlaceholderManager().registerServerPlaceholder(TabConstants.Placeholder.globalPlayerListGroup(entry.getKey()), 1000, () -> {
+                int count = 0;
+                for (TabPlayer player : TAB.getInstance().getOnlinePlayers()) {
+                    if (entry.getValue().contains(player.getServer()) && !player.isVanished()) count++;
+                }
+                return count;
+            });
         }
     }
 
@@ -50,7 +55,7 @@ public class GlobalPlayerList extends TabFeature implements JoinListener, QuitLi
 
     public boolean shouldSee(@NotNull TabPlayer viewer, @NotNull TabPlayer displayed) {
         if (displayed == viewer) return true;
-        if (displayed.isVanished() && !viewer.hasPermission(TabConstants.Permission.SEE_VANISHED)) return false;
+        if (!TAB.getInstance().getPlatform().canSee(viewer, displayed)) return false;
         if (isSpyServer(viewer.getServer())) return true;
         return getServerGroup(viewer.getServer()).equals(getServerGroup(displayed.getServer()));
     }
@@ -102,14 +107,6 @@ public class GlobalPlayerList extends TabFeature implements JoinListener, QuitLi
 
     @Override
     public void onServerChange(@NotNull TabPlayer changed, @NotNull String from, @NotNull String to) {
-        // Event is fired after all entries are removed from switched player's tablist, ready to re-add immediately
-        for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
-            // Ignore players on the same server, since the server already sends add packet
-            if (!all.getServer().equals(changed.getServer()) && shouldSee(changed, all)) {
-                changed.getTabList().addEntry(getAddInfoData(all, changed));
-            }
-        }
-
         // Player who switched server is removed from tablist of other players in ~70-110ms (depending on online count), re-add with a delay
         TAB.getInstance().getCPUManager().runTaskLater(200, featureName, TabConstants.CpuUsageCategory.SERVER_SWITCH, () -> {
             for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
@@ -125,8 +122,18 @@ public class GlobalPlayerList extends TabFeature implements JoinListener, QuitLi
         });
     }
 
+    @Override
+    public void onTabListClear(@NotNull TabPlayer player) {
+        for (TabPlayer all : TAB.getInstance().getOnlinePlayers()) {
+            // Ignore players on the same server, since the server already sends add packet
+            if (!all.getServer().equals(player.getServer()) && shouldSee(player, all)) {
+                player.getTabList().addEntry(getAddInfoData(all, player));
+            }
+        }
+    }
+
     public @NotNull TabList.Entry getAddInfoData(@NotNull TabPlayer p, @NotNull TabPlayer viewer) {
-        IChatBaseComponent format = null;
+        TabComponent format = null;
         if (playerlist != null && !playerlist.getDisableChecker().isDisabledPlayer(p)) {
             format = playerlist.getTabFormat(p, viewer);
         }

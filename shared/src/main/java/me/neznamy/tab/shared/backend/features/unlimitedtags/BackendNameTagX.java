@@ -17,13 +17,16 @@ import java.util.UUID;
 
 public abstract class BackendNameTagX extends NameTagX implements GameModeListener, PacketSendListener {
 
+    /** Entity tracking range in blocks */
+    private static final int ENTITY_TRACKING_RANGE = 48;
+
     /** Vehicle manager reference */
     @Getter private final VehicleRefresher vehicleManager = new VehicleRefresher(this);
 
     /** Packet Listener reference */
     protected final PacketListener packetListener = new PacketListener(this);
 
-    public BackendNameTagX() {
+    protected BackendNameTagX() {
         super(BackendArmorStandManager::new);
         TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.UNLIMITED_NAME_TAGS_VEHICLE_REFRESHER, vehicleManager);
         TAB.getInstance().getFeatureManager().registerFeature(TabConstants.Feature.UNLIMITED_NAME_TAGS_PACKET_LISTENER, packetListener);
@@ -94,7 +97,7 @@ public abstract class BackendNameTagX extends NameTagX implements GameModeListen
         if (viewer.getVersion().getMinorVersion() < 8) return;
         if (target == viewer || isPlayerDisabled(target) || isDead(target)) return;
         if (!areInSameWorld(viewer, target)) return;
-        if (getDistance(viewer, target) <= 48 && canSee(viewer, target) && !target.isVanished())
+        if (getDistance(viewer, target) <= ENTITY_TRACKING_RANGE && canSee(viewer, target) && !target.isVanished())
             getArmorStandManager(target).spawn((BackendTabPlayer) viewer);
     }
 
@@ -140,15 +143,18 @@ public abstract class BackendNameTagX extends NameTagX implements GameModeListen
     @Override
     public void onWorldChange(@NotNull TabPlayer p, @NotNull String from, @NotNull String to) {
         super.onWorldChange(p, from, to);
+        BackendArmorStandManager asm = getArmorStandManager(p);
         if (isPreviewingNameTag(p)) {
-            getArmorStandManager(p).spawn((BackendTabPlayer) p);
+            asm.spawn((BackendTabPlayer) p);
         }
         //for some reason this is needed for some users
         for (TabPlayer viewer : TAB.getInstance().getOnlinePlayers()) {
             if (viewer.getWorld().equals(from)) {
-                getArmorStandManager(p).destroy((BackendTabPlayer) viewer);
+                asm.destroy((BackendTabPlayer) viewer);
             }
         }
+        asm.updateMetadata();
+        asm.fixArmorStandHeights();
     }
 
     @Override
@@ -163,6 +169,16 @@ public abstract class BackendNameTagX extends NameTagX implements GameModeListen
         if (receiver.getVersion().getMinorVersion() < 8) return;
         if (!receiver.isLoaded() || getDisableChecker().isDisabledPlayer(receiver) || getUnlimitedDisableChecker().isDisabledPlayer(receiver)) return;
         BackendTabPlayer player = (BackendTabPlayer) receiver;
+        if (player.getEntityView().isBundlePacket(packet)) {
+            for (Object wrappedPacket : player.getEntityView().getPackets(packet)) {
+                checkPacket(player, wrappedPacket);
+            }
+        } else {
+            checkPacket(player, packet);
+        }
+    }
+
+    private void checkPacket(@NotNull BackendTabPlayer player, @NotNull Object packet) {
         if (player.getEntityView().isMovePacket(packet) && !player.getEntityView().isLookPacket(packet)) { //ignoring head rotation only packets
             packetListener.onEntityMove(player, player.getEntityView().getMoveEntityId(packet));
         } else if (player.getEntityView().isTeleportPacket(packet)) {
@@ -177,8 +193,14 @@ public abstract class BackendNameTagX extends NameTagX implements GameModeListen
     public void sneak(UUID playerUUID, boolean sneaking) {
         TabPlayer p = TAB.getInstance().getPlayer(playerUUID);
         if (p == null || isPlayerDisabled(p)) return;
-        TAB.getInstance().getCPUManager().runMeasuredTask(featureName, TabConstants.CpuUsageCategory.PLAYER_SNEAK,
-                () -> getArmorStandManager(p).sneak(sneaking));
+        TAB.getInstance().getCPUManager().runMeasuredTask(featureName, TabConstants.CpuUsageCategory.PLAYER_SNEAK, () -> {
+            BackendArmorStandManager asm = getArmorStandManager(p);
+            if (asm != null) {
+                asm.sneak(sneaking);
+            } else {
+                TAB.getInstance().getErrorManager().armorStandNull(p, "sneaking");
+            }
+        });
     }
 
     public void respawn(UUID playerUUID) {

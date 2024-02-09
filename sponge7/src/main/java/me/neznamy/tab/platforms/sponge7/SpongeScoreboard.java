@@ -1,56 +1,89 @@
 package me.neznamy.tab.platforms.sponge7;
 
+import me.neznamy.tab.shared.chat.EnumChatFormat;
+import me.neznamy.tab.shared.chat.TabComponent;
 import me.neznamy.tab.shared.platform.Scoreboard;
 import org.jetbrains.annotations.NotNull;
-import org.spongepowered.api.scoreboard.*;
+import org.jetbrains.annotations.Nullable;
+import org.spongepowered.api.scoreboard.CollisionRules;
+import org.spongepowered.api.scoreboard.Team;
+import org.spongepowered.api.scoreboard.Visibilities;
+import org.spongepowered.api.scoreboard.Visibility;
 import org.spongepowered.api.scoreboard.critieria.Criteria;
 import org.spongepowered.api.scoreboard.displayslot.DisplaySlots;
 import org.spongepowered.api.scoreboard.objective.Objective;
+import org.spongepowered.api.scoreboard.objective.displaymode.ObjectiveDisplayMode;
 import org.spongepowered.api.scoreboard.objective.displaymode.ObjectiveDisplayModes;
 import org.spongepowered.api.text.Text;
 
 import java.util.Collection;
 
+/**
+ * Scoreboard implementation for Sponge 7 using its API.
+ */
 public class SpongeScoreboard extends Scoreboard<SpongeTabPlayer> {
 
     /** Collision rule array for fast access */
-    private static final org.spongepowered.api.scoreboard.CollisionRule[] collisionRules = new org.spongepowered.api.scoreboard.CollisionRule[]{
-            CollisionRules.ALWAYS, CollisionRules.NEVER, CollisionRules.PUSH_OTHER_TEAMS, CollisionRules.PUSH_OWN_TEAM
+    private static final org.spongepowered.api.scoreboard.CollisionRule[] collisionRules = {
+            CollisionRules.ALWAYS,
+            CollisionRules.NEVER,
+            CollisionRules.PUSH_OTHER_TEAMS,
+            CollisionRules.PUSH_OWN_TEAM
     };
 
     /** Visibility array for fast access */
-    private static final Visibility[] visibilities = new Visibility[] {
-            Visibilities.ALWAYS, Visibilities.NEVER, Visibilities.HIDE_FOR_OTHER_TEAMS, Visibilities.HIDE_FOR_OWN_TEAM
+    private static final Visibility[] visibilities = {
+            Visibilities.ALWAYS,
+            Visibilities.NEVER,
+            Visibilities.HIDE_FOR_OTHER_TEAMS,
+            Visibilities.HIDE_FOR_OWN_TEAM
     };
 
     /** DisplaySlot array for fast access */
-    private static final org.spongepowered.api.scoreboard.displayslot.DisplaySlot[] displaySlots = new org.spongepowered.api.scoreboard.displayslot.DisplaySlot[] {
-            DisplaySlots.LIST, DisplaySlots.SIDEBAR, DisplaySlots.BELOW_NAME
+    private static final org.spongepowered.api.scoreboard.displayslot.DisplaySlot[] displaySlots = {
+            DisplaySlots.LIST,
+            DisplaySlots.SIDEBAR,
+            DisplaySlots.BELOW_NAME
+    };
+
+    /** Health display array for fast access */
+    private static final ObjectiveDisplayMode[] healthDisplays = {
+            ObjectiveDisplayModes.INTEGER,
+            ObjectiveDisplayModes.HEARTS
     };
 
     /** Scoreboard of the player */
     @NotNull
     private final org.spongepowered.api.scoreboard.Scoreboard sb = org.spongepowered.api.scoreboard.Scoreboard.builder().build();
-    
+
+    /**
+     * Constructs new instance and puts player into new scoreboard.
+     *
+     * @param   player
+     *          Player this scoreboard will belong to
+     */
     public SpongeScoreboard(@NotNull SpongeTabPlayer player) {
         super(player);
-        // Make sure each player is in different scoreboard for per-player view
+
+        // Make sure each player is in a different scoreboard for per-player view
         player.getPlayer().setScoreboard(sb);
     }
 
     @Override
-    public void setDisplaySlot(@NotNull DisplaySlot slot, @NotNull String objective) {
-        sb.getObjective(objective).ifPresent(o -> sb.updateDisplaySlot(o, displaySlots[slot.ordinal()]));
+    public void setDisplaySlot0(int slot, @NotNull String objective) {
+        sb.getObjective(objective).ifPresent(o -> sb.updateDisplaySlot(o, displaySlots[slot]));
     }
 
     @Override
-    public void registerObjective0(@NotNull String objectiveName, @NotNull String title, @NotNull HealthDisplay display) {
+    public void registerObjective0(@NotNull String objectiveName, @NotNull String title, int display,
+                                   @Nullable TabComponent numberFormat) {
         sb.addObjective(Objective.builder()
                 .name(objectiveName)
                 .displayName(Text.of(title))
-                .objectiveDisplayMode(display == HealthDisplay.HEARTS ? ObjectiveDisplayModes.HEARTS : ObjectiveDisplayModes.INTEGER)
+                .objectiveDisplayMode(healthDisplays[display])
                 .criterion(Criteria.DUMMY)
-                .build());
+                .build()
+        );
     }
 
     @Override
@@ -59,17 +92,18 @@ public class SpongeScoreboard extends Scoreboard<SpongeTabPlayer> {
     }
 
     @Override
-    public void updateObjective0(@NotNull String objectiveName, @NotNull String title, @NotNull HealthDisplay display) {
+    public void updateObjective0(@NotNull String objectiveName, @NotNull String title, int display,
+                                 @Nullable TabComponent numberFormat) {
         sb.getObjective(objectiveName).ifPresent(obj -> {
             obj.setDisplayName(Text.of(title));
-            obj.setDisplayMode(display == HealthDisplay.HEARTS ? ObjectiveDisplayModes.HEARTS : ObjectiveDisplayModes.INTEGER);
+            obj.setDisplayMode(healthDisplays[display]);
         });
     }
 
     @Override
     public void registerTeam0(@NotNull String name, @NotNull String prefix, @NotNull String suffix,
                               @NotNull NameVisibility visibility, @NotNull CollisionRule collision,
-                              @NotNull Collection<String> players, int options) {
+                              @NotNull Collection<String> players, int options, @NotNull EnumChatFormat color) {
         Team team = Team.builder()
                 .name(name)
                 .displayName(Text.of(name))
@@ -93,7 +127,8 @@ public class SpongeScoreboard extends Scoreboard<SpongeTabPlayer> {
 
     @Override
     public void updateTeam0(@NotNull String name, @NotNull String prefix, @NotNull String suffix,
-                            @NotNull NameVisibility visibility, @NotNull CollisionRule collision, int options) {
+                            @NotNull NameVisibility visibility, @NotNull CollisionRule collision,
+                            int options, @NotNull EnumChatFormat color) {
         sb.getTeam(name).ifPresent(team -> {
             team.setDisplayName(Text.of(name));
             team.setPrefix(Text.of(prefix));
@@ -106,12 +141,13 @@ public class SpongeScoreboard extends Scoreboard<SpongeTabPlayer> {
     }
 
     @Override
-    public void setScore0(@NotNull String objective, @NotNull String playerName, int score) {
-        sb.getObjective(objective).ifPresent(o -> o.getOrCreateScore(Text.of(playerName)).setScore(score));
+    public void setScore0(@NotNull String objective, @NotNull String scoreHolder, int score,
+                          @Nullable TabComponent displayName, @Nullable TabComponent numberFormat) {
+        sb.getObjective(objective).ifPresent(o -> o.getOrCreateScore(Text.of(scoreHolder)).setScore(score));
     }
 
     @Override
-    public void removeScore0(@NotNull String objective, @NotNull String playerName) {
-        sb.getObjective(objective).ifPresent(o -> o.removeScore(Text.of(playerName)));
+    public void removeScore0(@NotNull String objective, @NotNull String scoreHolder) {
+        sb.getObjective(objective).ifPresent(o -> o.removeScore(Text.of(scoreHolder)));
     }
 }

@@ -2,7 +2,9 @@ package me.neznamy.tab.shared.features.scoreboard;
 
 import lombok.Getter;
 import lombok.NonNull;
+import me.neznamy.tab.shared.Property;
 import me.neznamy.tab.shared.TabConstants;
+import me.neznamy.tab.shared.chat.SimpleComponent;
 import me.neznamy.tab.shared.features.types.Refreshable;
 import me.neznamy.tab.shared.features.types.TabFeature;
 import me.neznamy.tab.api.scoreboard.Line;
@@ -19,30 +21,30 @@ import java.util.*;
 /**
  * A class representing a scoreboard configured in config
  */
+@Getter
 public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.scoreboard.Scoreboard, Refreshable {
 
-    @Getter private final String featureName = "Scoreboard";
-    @Getter private final String refreshDisplayName = "Updating Scoreboard title";
+    private final String featureName = "Scoreboard";
+    private final String refreshDisplayName = "Updating Scoreboard title";
+    private final String titleProperty = Property.randomName();
 
     //scoreboard manager
-    @Getter private final ScoreboardManagerImpl manager;
+    private final ScoreboardManagerImpl manager;
 
     //name of this scoreboard
-    @Getter private final String name;
+    private final String name;
 
     //scoreboard title
-    @Getter private String title;
+    private String title;
 
     //display condition
     private Condition displayCondition;
 
     //lines of scoreboard
-    @Getter private final List<Line> lines = new ArrayList<>();
+    private final List<Line> lines = new ArrayList<>();
 
     //players currently seeing this scoreboard
-    @Getter private final Set<TabPlayer> players = Collections.newSetFromMap(new WeakHashMap<>());
-
-    private final String titleProperty;
+    private final Set<TabPlayer> players = Collections.newSetFromMap(new WeakHashMap<>());
 
     /**
      * Constructs new instance with given parameters and registers lines to feature manager
@@ -63,7 +65,7 @@ public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.sco
         this(manager, name, title, lines, false);
         this.displayCondition = Condition.getCondition(displayCondition);
         if (this.displayCondition != null) {
-            manager.addUsedPlaceholders(Collections.singletonList(TabConstants.Placeholder.condition(this.displayCondition.getName())));
+            manager.addUsedPlaceholder(TabConstants.Placeholder.condition(this.displayCondition.getName()));
         }
     }
 
@@ -78,13 +80,14 @@ public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.sco
      *          scoreboard title
      * @param   lines
      *          lines of scoreboard
+     * @param   dynamicLinesOnly
+     *          Whether this scoreboard should only use dynamic lines or not
      */
     public ScoreboardImpl(@NonNull ScoreboardManagerImpl manager, @NonNull String name, @NonNull String title,
                           @NonNull List<String> lines, boolean dynamicLinesOnly) {
         this.manager = manager;
         this.name = name;
         this.title = title;
-        this.titleProperty = getName() + "-" + TabConstants.Property.SCOREBOARD_TITLE;
         for (int i=0; i<lines.size(); i++) {
             ScoreboardLine score;
             if (dynamicLinesOnly) {
@@ -107,18 +110,14 @@ public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.sco
      * @return  most optimal line from provided text
      */
     private @NotNull ScoreboardLine registerLine(int lineNumber, @Nullable String text) {
-        if (text == null) return new StaticLine(this, lineNumber, "");
-        if (text.startsWith("Custom|")) {
-            String[] elements = text.split("\\|");
-            return new CustomLine(this, lineNumber, elements[1], elements[2], elements[3], Integer.parseInt(elements[4]));
-        }
+        if (text == null) return new LongLine(this, lineNumber, "");
         if (text.startsWith("Long|")) {
             return new LongLine(this, lineNumber, text.substring(5));
         }
         if (text.contains("%")) {
             return new StableDynamicLine(this, lineNumber, text);
         }
-        return new StaticLine(this, lineNumber, text);
+        return new LongLine(this, lineNumber, text);
     }
 
     /**
@@ -132,19 +131,27 @@ public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.sco
         return displayCondition == null || displayCondition.isMet(p);
     }
 
+    /**
+     * Adds the player into scoreboard. This includes registering properties,
+     * as well as scoreboard and all lines.
+     *
+     * @param   p
+     *          Player to send this scoreboard to
+     */
     public void addPlayer(@NonNull TabPlayer p) {
         if (players.contains(p)) return; //already registered
-        players.add(p);
         p.setProperty(this, titleProperty, title);
         p.getScoreboard().registerObjective(
                 ScoreboardManagerImpl.OBJECTIVE_NAME,
                 p.getProperty(titleProperty).updateAndGet(),
-                Scoreboard.HealthDisplay.INTEGER
+                Scoreboard.HealthDisplay.INTEGER,
+                new SimpleComponent("")
         );
         p.getScoreboard().setDisplaySlot(Scoreboard.DisplaySlot.SIDEBAR, ScoreboardManagerImpl.OBJECTIVE_NAME);
         for (Line s : lines) {
             ((ScoreboardLine)s).register(p);
         }
+        players.add(p);
         manager.getActiveScoreboards().put(p, this);
         recalculateScores(p);
         TAB.getInstance().getPlaceholderManager().getTabExpansion().setScoreboardName(p, name);
@@ -152,20 +159,25 @@ public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.sco
 
     @Override
     public void unregister() {
-        for (TabPlayer all : getPlayers().toArray(new TabPlayer[0])) {
+        for (TabPlayer all : players.toArray(new TabPlayer[0])) {
             removePlayer(all);
         }
         players.clear();
     }
 
+    /**
+     * Unregisters player from this scoreboard.
+     *
+     * @param   p
+     *          Player to unregister
+     */
     public void removePlayer(@NonNull TabPlayer p) {
-        if (!players.contains(p)) return; //not registered
+        if (!players.remove(p)) return; //not registered
         p.getScoreboard().unregisterObjective(ScoreboardManagerImpl.OBJECTIVE_NAME);
         for (Line line : lines) {
             if (((ScoreboardLine)line).isShownTo(p))
                 p.getScoreboard().unregisterTeam(((ScoreboardLine)line).getTeamName());
         }
-        players.remove(p);
         manager.getActiveScoreboards().remove(p);
         TAB.getInstance().getPlaceholderManager().getTabExpansion().setScoreboardName(p, "");
     }
@@ -176,7 +188,8 @@ public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.sco
         refreshed.getScoreboard().updateObjective(
                 ScoreboardManagerImpl.OBJECTIVE_NAME,
                 refreshed.getProperty(titleProperty).updateAndGet(),
-                Scoreboard.HealthDisplay.INTEGER
+                Scoreboard.HealthDisplay.INTEGER,
+                new SimpleComponent("")
         );
     }
 
@@ -212,22 +225,39 @@ public class ScoreboardImpl extends TabFeature implements me.neznamy.tab.api.sco
         TAB.getInstance().getFeatureManager().unregisterFeature(TabConstants.Feature.scoreboardLine(name, index));
     }
 
+    /**
+     * Recalculate scores for each line if using numbers. This takes into
+     * consideration lines that are not visible.
+     *
+     * @param   p
+     *          Player to recalculate scores for
+     */
     public void recalculateScores(@NonNull TabPlayer p) {
         if (!manager.isUsingNumbers()) return;
         List<Line> linesReversed = new ArrayList<>(lines);
         Collections.reverse(linesReversed);
-        int score = 1;
+        int score = manager.getStaticNumber();
         for (Line line : linesReversed) {
-            if (line instanceof CustomLine) {
-                score++;
-                continue;
-            }
-            if (line instanceof StaticLine || p.getProperty(getName() + "-" + ((ScoreboardLine)line).getTeamName()).get().length() > 0) {
-                p.getScoreboard().setScore(ScoreboardManagerImpl.OBJECTIVE_NAME, ((ScoreboardLine)line).getPlayerName(p), score++);
+            Property pr = p.getProperty(((ScoreboardLine) line).getTextProperty());
+            if (pr.getCurrentRawValue().isEmpty() || (!pr.getCurrentRawValue().isEmpty() && !pr.get().isEmpty())) {
+                p.getScoreboard().setScore(
+                        ScoreboardManagerImpl.OBJECTIVE_NAME,
+                        ((ScoreboardLine)line).getPlayerName(p),
+                        score++,
+                        null, // Makes no sense for TAB
+                        ((ScoreboardLine) line).getScoreRefresher().getNumberFormat(p)
+                );
             }
         }
     }
 
+    /**
+     * Removes this player from list of players who can see it.
+     * Used on Login packet which clears all scoreboards.
+     *
+     * @param   player
+     *          Player to remove from set
+     */
     public void removePlayerFromSet(@NonNull TabPlayer player) {
         players.remove(player);
     }

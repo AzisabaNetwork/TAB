@@ -5,8 +5,8 @@ import me.clip.placeholderapi.PlaceholderAPI;
 import me.neznamy.tab.platforms.bukkit.features.PerWorldPlayerList;
 import me.neznamy.tab.shared.TAB;
 import me.neznamy.tab.shared.TabConstants;
-import me.neznamy.tab.shared.chat.IChatBaseComponent;
-import me.neznamy.tab.shared.placeholders.PlayerPlaceholderImpl;
+import me.neznamy.tab.shared.chat.SimpleComponent;
+import me.neznamy.tab.shared.placeholders.types.PlayerPlaceholderImpl;
 import me.neznamy.tab.shared.platform.TabPlayer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -18,10 +18,16 @@ import org.jetbrains.annotations.NotNull;
 import java.util.function.Consumer;
 
 /**
- * Platform override for Folia
+ * Platform override for Folia.
  */
 public class FoliaPlatform extends BukkitPlatform {
 
+    /**
+     * Constructs new instance with given plugin.
+     *
+     * @param   plugin
+     *          Plugin
+     */
     public FoliaPlatform(@NotNull JavaPlugin plugin) {
         super(plugin);
     }
@@ -31,7 +37,7 @@ public class FoliaPlatform extends BukkitPlatform {
         super.loadPlayers();
 
         // Values are never updated in the API, warn users
-        logWarn(new IChatBaseComponent("Folia never updates MSPT and TPS values in the API, making " +
+        logWarn(new SimpleComponent("Folia never updates MSPT and TPS values in the API, making " +
                 "%mspt% and %tps% return the default values (0 and 20)."));
 
         // Folia never calls PlayerChangedWorldEvent, this is a workaround
@@ -74,9 +80,10 @@ public class FoliaPlatform extends BukkitPlatform {
      * @param   task
      *          Task to run
      */
+    @Override
     @SneakyThrows
     @SuppressWarnings("JavaReflectionMemberAccess")
-    private void runSync(@NotNull Entity entity, @NotNull Runnable task) {
+    public void runSync(@NotNull Entity entity, @NotNull Runnable task) {
         Object entityScheduler = Entity.class.getMethod("getScheduler").invoke(entity);
         Consumer<?> consumer = $ -> task.run(); // Reflection and lambdas don't go together
         entityScheduler.getClass().getMethod("run", Plugin.class, Consumer.class, Runnable.class)

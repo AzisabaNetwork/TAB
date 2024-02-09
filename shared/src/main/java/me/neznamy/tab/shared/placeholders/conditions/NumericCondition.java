@@ -1,8 +1,8 @@
 package me.neznamy.tab.shared.placeholders.conditions;
 
-import lombok.NonNull;
-import me.neznamy.tab.shared.platform.TabPlayer;
 import me.neznamy.tab.shared.TAB;
+import me.neznamy.tab.shared.platform.TabPlayer;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.function.BiFunction;
 
@@ -28,7 +28,15 @@ public class NumericCondition extends SimpleCondition {
     /** Function that determines whether condition is met or not */
     private final BiFunction<Double, Double, Boolean> function;
 
-    public NumericCondition(@NonNull String[] arr, @NonNull BiFunction<Double, Double, Boolean> function) {
+    /**
+     * Constructs new instance with given parameters.
+     *
+     * @param   arr
+     *          Array with first value being left side, second value being right side
+     * @param   function
+     *          Condition function
+     */
+    public NumericCondition(@NotNull String[] arr, @NotNull BiFunction<Double, Double, Boolean> function) {
         super(arr);
         this.function = function;
         try {
@@ -53,11 +61,11 @@ public class NumericCondition extends SimpleCondition {
      *          player to get left side for
      * @return  parsed left side
      */
-    public double getLeftSide(@NonNull TabPlayer p) {
+    public double getLeftSide(@NotNull TabPlayer p) {
         if (leftSideStatic) return leftSideValue;
         String value = parseLeftSide(p);
         if (value.contains(",")) value = value.replace(",", "");
-        return TAB.getInstance().getErrorManager().parseDouble(value, 0);
+        return parseDouble(leftSide, value, 0, p);
     }
 
     /**
@@ -68,15 +76,38 @@ public class NumericCondition extends SimpleCondition {
      *          player to get right side for
      * @return  parsed right side
      */
-    public double getRightSide(@NonNull TabPlayer p) {
+    public double getRightSide(@NotNull TabPlayer p) {
         if (rightSideStatic) return rightSideValue;
         String value = parseRightSide(p);
         if (value.contains(",")) value = value.replace(",", "");
-        return TAB.getInstance().getErrorManager().parseDouble(value, 0);
+        return parseDouble(rightSide, value, 0, p);
+    }
+
+    /**
+     * Parses double in given string and returns it.
+     * Returns second argument if string is not valid and prints a console warn.
+     *
+     * @param   placeholder
+     *          Raw placeholder, used in error message
+     * @param   output
+     *          string to parse
+     * @param   defaultValue
+     *          value to return if string is not valid
+     * @param   player
+     *          Player name used in error message
+     * @return  parsed double or {@code defaultValue} if input is invalid
+     */
+    public double parseDouble(@NotNull String placeholder, @NotNull String output, double defaultValue, TabPlayer player) {
+        try {
+            return Double.parseDouble(output);
+        } catch (NumberFormatException e) {
+            TAB.getInstance().getConfigHelper().runtime().invalidNumberForCondition(placeholder, output, player);
+            return defaultValue;
+        }
     }
 
     @Override
-    public boolean isMet(@NonNull TabPlayer p) {
+    public boolean isMet(@NotNull TabPlayer p) {
         return function.apply(getLeftSide(p), getRightSide(p));
     }
 }

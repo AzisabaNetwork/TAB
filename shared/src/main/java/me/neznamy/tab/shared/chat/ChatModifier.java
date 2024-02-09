@@ -9,24 +9,24 @@ import org.json.simple.JSONObject;
 @Data @NoArgsConstructor
 public class ChatModifier {
 
-    @Nullable
-    private TextColor color;
+    @Nullable private TextColor color;
     private boolean bold;
     private boolean italic;
     private boolean underlined;
     private boolean strikethrough;
     private boolean obfuscated;
-    @Nullable
-    private String font;
+    @Nullable private ClickEvent clickEvent;
+    @Nullable private String font;
 
     public ChatModifier(@NotNull ChatModifier modifier) {
-        this.color = modifier.color == null ? null : new TextColor(modifier.color);
-        this.bold = modifier.bold;
-        this.italic = modifier.italic;
-        this.underlined = modifier.underlined;
-        this.strikethrough = modifier.strikethrough;
-        this.obfuscated = modifier.obfuscated;
-        this.font = modifier.font;
+        color = modifier.color;
+        bold = modifier.bold;
+        italic = modifier.italic;
+        underlined = modifier.underlined;
+        strikethrough = modifier.strikethrough;
+        obfuscated = modifier.obfuscated;
+        clickEvent = modifier.clickEvent;
+        font = modifier.font;
     }
 
     @SuppressWarnings("unchecked")
@@ -39,18 +39,30 @@ public class ChatModifier {
         if (underlined) json.put("underlined", true);
         if (strikethrough) json.put("strikethrough", true);
         if (obfuscated) json.put("obfuscated", true);
+        if (clickEvent != null) {
+            JSONObject click = new JSONObject();
+            click.put("action", clickEvent.getAction().name().toLowerCase());
+            click.put("value", clickEvent.getValue());
+            json.put("clickEvent", click);
+        }
         if (font != null) json.put("font", font);
         return json;
     }
 
+    /**
+     * Returns a String consisting of magic codes (color symbol + character) of
+     * each magic code used. If none are used, empty String is returned.
+     *
+     * @return  Magic codes of this modifier as String
+     */
     @NotNull
     public String getMagicCodes() {
         StringBuilder builder = new StringBuilder();
-        if (isBold()) builder.append(EnumChatFormat.BOLD.getFormat());
-        if (isItalic()) builder.append(EnumChatFormat.ITALIC.getFormat());
-        if (isUnderlined()) builder.append(EnumChatFormat.UNDERLINE.getFormat());
-        if (isStrikethrough()) builder.append(EnumChatFormat.STRIKETHROUGH.getFormat());
-        if (isObfuscated()) builder.append(EnumChatFormat.OBFUSCATED.getFormat());
+        if (bold) builder.append(EnumChatFormat.BOLD);
+        if (italic) builder.append(EnumChatFormat.ITALIC);
+        if (underlined) builder.append(EnumChatFormat.UNDERLINE);
+        if (strikethrough) builder.append(EnumChatFormat.STRIKETHROUGH);
+        if (obfuscated) builder.append(EnumChatFormat.OBFUSCATED);
         return builder.toString();
     }
 }

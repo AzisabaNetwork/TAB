@@ -10,7 +10,10 @@ import me.neznamy.tab.shared.platform.Platform;
 import me.neznamy.tab.shared.features.redis.RedisSupport;
 import org.jetbrains.annotations.NotNull;
 
-public interface BackendPlatform<T> extends Platform<T> {
+/**
+ * Interface for backend platforms with a few default implementations, as well as new methods.
+ */
+public interface BackendPlatform extends Platform {
 
     @Override
     @NotNull default GroupManager detectPermissionPlugin() {
@@ -35,6 +38,26 @@ public interface BackendPlatform<T> extends Platform<T> {
         manager.registerServerPlaceholder(TabConstants.Placeholder.MSPT, 1000,
                 () -> registry.format(getMSPT()));
         registry.registerPlaceholders(manager);
+    }
+
+    @Override
+    default boolean isProxy() {
+        return false;
+    }
+
+    /**
+     * Registers a dummy placeholder implementation for specified identifier in case
+     * no placeholder plugin was found.
+     *
+     * @param   identifier
+     *          Placeholder identifier to register
+     */
+    default void registerDummyPlaceholder(@NotNull String identifier) {
+        if (identifier.startsWith("%rel_")) { // To prevent placeholder identifier check from throwing
+            TAB.getInstance().getPlaceholderManager().registerRelationalPlaceholder(identifier, -1, (viewer, target) -> identifier);
+        } else {
+            TAB.getInstance().getPlaceholderManager().registerServerPlaceholder(identifier, -1, () -> identifier);
+        }
     }
 
     /**

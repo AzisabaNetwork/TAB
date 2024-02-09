@@ -1,5 +1,7 @@
 package me.neznamy.tab.shared.features.types;
 
+import me.neznamy.tab.shared.TAB;
+import me.neznamy.tab.shared.config.file.ConfigurationFile;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -12,5 +14,16 @@ public abstract class TabFeature {
      *
      * @return  name of this feature display in /tab cpu
      */
-    public abstract @NotNull String getFeatureName();
+    @NotNull
+    public abstract String getFeatureName();
+
+    /**
+     * Returns config file.
+     *
+     * @return  config file
+     */
+    @NotNull
+    public ConfigurationFile config() {
+        return TAB.getInstance().getConfiguration().getConfig();
+    }
 }
